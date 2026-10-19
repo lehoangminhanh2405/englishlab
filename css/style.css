@@ -229,4 +229,4 @@ mark.hl.bad { background: color-mix(in srgb, var(--bad) 28%, transparent); }
 .ans-input { font: inherit; font-size: 1.3rem; width: 100%; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg); color: var(--text); }
 .ans-input:focus { outline: none; border-color: var(--primary); }
 .ans-input:disabled { opacity: 1; }
-.blank { display: inline-block; letter-spacing: .1em; border-bottom: 2px solid var(--muted); margin: 0 4px; color: var(--muted); }
+.blank { display: inline-block; letter-spacing: .15em; font-weight: 700; margin: 0 4px; color: var(--primary); }

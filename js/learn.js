@@ -21,6 +21,9 @@ export function findInSentence(sentence, word) {
   return null;
 }
 
+/** Che từ bằng dấu * theo đúng số ký tự (giữ nguyên khoảng trắng và dấu gạch ngang). */
+const mask = w => w.replace(/[^\s-]/g, '*');
+
 const highlighted = (f, cls = 'hl') => `${esc(f.before)}<mark class="${cls}">${esc(f.hit)}</mark>${esc(f.after)}`;
 
 /**
@@ -100,8 +103,8 @@ export function learnSession(panel, items, { mode = 'learn', title = '', onFinis
       <div class="card learn">
         <span class="badge-step">${mode === 'hard' ? 'Ôn lại từ khó' : 'Tự điền từ'}</span>
         <div class="learn-sec"><span class="lk-label">Định nghĩa – hãy gõ từ hoặc cụm từ phù hợp</span><div class="def-big" id="def" lang="en"></div></div>
-        <div class="answer-row"><input id="ans" class="ans-input" placeholder="Gõ từ tiếng Anh…" autocomplete="off" autocapitalize="off" spellcheck="false" lang="en" /></div>
-        ${f ? `<div class="learn-sec"><span class="lk-label">Ví dụ (từ cần tìm bị che)</span><div class="muted" lang="en">${esc(f.before)}<span class="blank">${'_'.repeat(Math.max(4, Math.min(12, it.en.length)))}</span>${esc(f.after)}</div></div>` : ''}
+        <div class="answer-row"><input id="ans" class="ans-input" placeholder="${esc(mask(it.en))}" autocomplete="off" autocapitalize="off" spellcheck="false" lang="en" /></div>
+        ${f ? `<div class="learn-sec"><span class="lk-label">Ví dụ (mỗi dấu * là một ký tự)</span><div class="muted" lang="en">${esc(f.before)}<span class="blank">${esc(mask(it.en))}</span>${esc(f.after)}</div></div>` : ''}
         <div id="hints" class="muted"></div>
         <p id="result" class="feedback"></p>
         <div class="row">
