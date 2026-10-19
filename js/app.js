@@ -4,6 +4,8 @@ import {
   TRACKS, esc, shuffle, pick, speak, wordsOf, allWords, updateBadge, render, crumbs, sentencePool, topicProgress, isUnlocked, settings,
 } from './util.js';
 import { cardSession } from './cards.js';
+import { learnSession, missedList } from './learn.js';
+import { viewHard, startHardSession } from './hard.js';
 import { initLookup, fillIpa } from './lookup.js';
 import { tabListening, tabFill } from './listening.js';
 import { tabReading } from './reading.js';
@@ -80,7 +82,7 @@ function viewTrack(trackId) {
 
 // ---------- trang chủ đề ----------
 const TABS = [
-  ['vocab', '📖 Từ vựng'], ['cards', '🃏 Thẻ nhớ'], ['sentences', '🧩 Đặt câu'], ['dialogue', '🎭 Hội thoại'],
+  ['vocab', '📖 Từ vựng'], ['learn', '✍️ Học & điền từ'], ['cards', '🃏 Thẻ nhớ'], ['sentences', '🧩 Đặt câu'], ['dialogue', '🎭 Hội thoại'],
   ['listening', '🎧 Nghe'], ['fill', '✍️ Điền từ'], ['reading', '📖 Đọc hiểu'], ['quiz', '✅ Kiểm tra'],
 ];
 
@@ -96,24 +98,63 @@ function viewTopic(trackId, topicId, tab = 'vocab') {
     <div class="tabs">${TABS.map(([id, label]) => `<a href="#/topic/${trackId}/${topicId}/${id}" class="${id === tab ? 'active' : ''}">${label}</a>`).join('')}</div>
     <div id="panel"></div>`);
   const panel = document.getElementById('panel');
-  ({ vocab: tabVocab, cards: tabCards, sentences: tabSentences, dialogue: tabDialogue, listening: tabListening, fill: tabFill, reading: tabReading, quiz: tabQuiz }[tab] || tabVocab)(panel, track, topic);
+  ({ vocab: tabVocab, learn: tabLearn, cards: tabCards, sentences: tabSentences, dialogue: tabDialogue, listening: tabListening, fill: tabFill, reading: tabReading, quiz: tabQuiz }[tab] || tabVocab)(panel, track, topic);
 }
 
 function tabVocab(panel, track, topic) {
   const ws = wordsOf(track, topic);
   panel.innerHTML = `
     <div class="table-wrap"><table class="vocab">
-      <thead><tr><th></th><th>Từ / cụm từ</th><th>Nghĩa</th><th>Ví dụ</th></tr></thead>
+      <thead><tr><th></th><th>Từ / cụm từ</th><th>Nghĩa</th><th>Ví dụ</th><th></th></tr></thead>
       <tbody>${ws.map((w, i) => `<tr>
         <td><button class="icon-btn" data-say="${i}" aria-label="Nghe phát âm">🔊</button></td>
         <td class="en" lang="en">${esc(w.en)}<div class="ipa" data-ipa="${esc(w.en)}"></div></td>
         <td>${esc(w.vi)}</td>
         <td><div lang="en">${esc(w.ex)}</div><div class="muted">${esc(w.exVi)}</div></td>
+        <td><button class="icon-btn flag ${store.isHard(w.key) ? 'on' : ''}" data-flag="${i}" title="Đánh dấu để ôn lại" aria-label="Đánh dấu ôn lại">⚑</button></td>
       </tr>`).join('')}</tbody>
     </table></div>
     <p><a class="btn primary" href="#/topic/${track.id}/${topic.id}/cards">Học bằng thẻ nhớ →</a></p>`;
   panel.querySelectorAll('[data-say]').forEach(b => b.onclick = () => speak(ws[b.dataset.say].en));
+  panel.querySelectorAll('[data-flag]').forEach(b => b.onclick = () => {
+    const w = ws[b.dataset.flag];
+    if (store.isHard(w.key)) store.clearHard(w.key); else store.markHard(w.key);
+    b.classList.toggle('on', store.isHard(w.key));
+  });
   fillIpa(panel);
+}
+
+function tabLearn(panel, track, topic) {
+  const ws = wordsOf(track, topic);
+  const due = ws.filter(w => store.isDue(w.key));
+  const fresh = ws.filter(w => !store.getCard(w.key));
+  const hard = ws.filter(w => store.isHard(w.key));
+  const batch = [...due.slice(0, 10), ...fresh].slice(0, 10);
+
+  const summary = (p, r) => {
+    p.innerHTML = `<div class="card center"><h2>✍️ Xong lượt học</h2>
+      <p>Điền đúng ngay ${r.correct}/${r.total} từ.${r.missed.length ? ' Các từ sai đã được đưa vào danh sách ôn lại.' : ' Tuyệt vời!'}</p>
+      <p>${r.missed.length ? '<button class="btn" id="redo">🔁 Ôn lại các từ vừa sai</button> ' : ''}<button class="btn" id="more">Học tiếp</button>
+      <a class="btn primary" href="#/topic/${track.id}/${topic.id}/sentences">Luyện đặt câu →</a></p></div>${missedList(r.missed)}`;
+    document.getElementById('more').onclick = () => tabLearn(panel, track, topic);
+    const redo = document.getElementById('redo');
+    if (redo) redo.onclick = () => startHardSession(panel, r.missed, () => tabLearn(panel, track, topic));
+  };
+
+  if (!batch.length) {
+    panel.innerHTML = `<div class="card center"><h2>✨ Bạn đã học hết từ của chủ đề này</h2><p>Chưa có từ nào đến hạn ôn. Hãy luyện lại để nhớ chắc hơn.</p>
+      <p><button class="btn primary" id="again">Luyện lại 10 từ bất kỳ</button>
+      ${hard.length ? `<button class="btn" id="hard">🔁 Ôn lại ${hard.length} từ khó của chủ đề</button>` : ''}</p></div>`;
+    document.getElementById('again').onclick = () => learnSession(panel, pick(ws, 10), { title: 'Luyện lại', onFinish: summary });
+    const h = document.getElementById('hard');
+    if (h) h.onclick = () => startHardSession(panel, hard, () => tabLearn(panel, track, topic));
+    return;
+  }
+  panel.innerHTML = `<div id="learnBox"></div>${hard.length ? `<p class="row"><button class="btn small" id="hard">🔁 Ôn lại ${hard.length} từ khó của chủ đề</button></p>` : ''}`;
+  const box = document.getElementById('learnBox');
+  learnSession(box, batch, { title: `Từ mới: ${fresh.length} · Cần ôn: ${due.length}. Mỗi lượt tối đa 10 từ.`, onFinish: summary });
+  const h = document.getElementById('hard');
+  if (h) h.onclick = () => startHardSession(panel, hard, () => tabLearn(panel, track, topic));
 }
 
 function tabCards(panel, track, topic) {
@@ -393,6 +434,7 @@ function route() {
   if (a === 'review') return viewReview();
   if (a === 'progress') return viewProgress();
   if (a === 'login') return viewLogin();
+  if (a === 'hard') return viewHard();
   if (a === 'roadmap') return viewRoadmap(b) || view404();
   if (['listening', 'listening-fill', 'reading', 'sentences'].includes(a)) return viewHub(a === 'listening-fill' ? 'fill' : a) || view404();
   if (a === 'ipa') return viewIpa();

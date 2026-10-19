@@ -38,3 +38,6 @@ Tra từ nhanh gọi `dictionaryapi.dev` (phiên âm, định nghĩa, đồng ng
 
 ## Kiểm duyệt cộng đồng
 Bài viết do người dùng đăng, hiển thị công khai. Quản trị viên có thể xóa bài vi phạm trong Supabase → Table Editor → `posts`.
+
+## Định nghĩa từ vựng
+`js/data/defs-giao-tiep.js` và `js/data/defs-cnsh.js` chứa định nghĩa tiếng Anh đơn giản do tác giả tự soạn (mỗi dòng `từ = định nghĩa`, dòng `topicId|từ = ...` dùng khi một từ có nghĩa khác theo chủ đề). Web **không** sao chép nội dung của Cambridge Dictionary vì có bản quyền; mỗi từ có liên kết mở trang Cambridge để đối chiếu. Muốn dùng dữ liệu Cambridge chính thức, cần đăng ký Cambridge Dictionary API (có giấy phép) rồi thay nguồn trong `js/defs.js`.

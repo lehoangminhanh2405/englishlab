@@ -212,3 +212,15 @@ textarea { resize: vertical; }
 .avatars { display: flex; flex-wrap: wrap; gap: 6px; }
 .avatar-opt { font-size: 1.5rem; padding: 4px 8px; border-radius: 10px; border: 2px solid var(--border); background: var(--surface); cursor: pointer; }
 .avatar-opt.on { border-color: var(--primary); background: var(--soft); }
+
+/* ---- học từ & điền từ ---- */
+.learn { display: grid; gap: 14px; }
+.badge-step { justify-self: start; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; background: var(--soft); color: var(--primary); padding: 3px 10px; border-radius: 999px; }
+.learn-word { font-size: 2rem; font-weight: 800; }
+.learn-sec > div { margin-top: 2px; }
+mark.hl { background: color-mix(in srgb, var(--primary) 25%, transparent); color: inherit; border-radius: 4px; padding: 0 3px; font-weight: 700; }
+mark.hl.ok { background: color-mix(in srgb, var(--good) 28%, transparent); }
+mark.hl.bad { background: color-mix(in srgb, var(--bad) 28%, transparent); }
+.missed { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.icon-btn.flag { opacity: .35; font-size: 1.1rem; }
+.icon-btn.flag.on { opacity: 1; color: var(--bad); }

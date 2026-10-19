@@ -23,6 +23,7 @@ state.xp ||= 0;       // tổng điểm kinh nghiệm
 state.xpDays ||= {};  // { yyyy-mm-dd: điểm kiếm được trong ngày }
 state.best ||= {};    // { "track/topic:quiz": điểm cao nhất (%) }
 state.basket ||= {};  // giỏ từ: { từ viết thường: { en, vi, ex, exVi, t, del? } }
+state.hard ||= {};    // từ cần ôn lại: { khóa thẻ: { t, ok, del? } }
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -77,6 +78,33 @@ export function removeBasket(en) {
   state.basket[en.toLowerCase()] = { del: true, t: Date.now() };
   write(state);
 }
+/** Đánh dấu từ khó để ôn lại; cần trả lời đúng 2 lần liên tiếp ở chế độ ôn lại thì mới tự bỏ dấu. */
+export function markHard(key) {
+  if (isHard(key)) return;
+  state.hard[key] = { t: Date.now(), ok: 0 };
+  write(state);
+}
+export function clearHard(key) {
+  state.hard[key] = { del: true, t: Date.now() };
+  write(state);
+}
+export const isHard = key => !!state.hard[key] && !state.hard[key].del;
+export const hardKeys = () => Object.keys(state.hard).filter(isHard);
+/** Ghi nhận trả lời đúng khi ôn lại; trả về true nếu từ đã được bỏ dấu khó. */
+export function hardCorrect(key) {
+  const h = state.hard[key];
+  if (!h || h.del) return true;
+  h.ok = (h.ok || 0) + 1;
+  h.t = Date.now();
+  if (h.ok >= 2) { state.hard[key] = { del: true, t: Date.now() }; write(state); return true; }
+  write(state);
+  return false;
+}
+export function hardWrong(key) {
+  state.hard[key] = { t: Date.now(), ok: 0 };
+  write(state);
+}
+
 export const inBasket = en => { const b = state.basket[en.toLowerCase()]; return !!b && !b.del; };
 export const basketList = () => Object.values(state.basket).filter(b => !b.del).sort((a, b) => b.t - a.t);
 
@@ -113,7 +141,7 @@ export function streak() {
 export const reviewedToday = () => state.days[today()] || 0;
 
 export function reset() {
-  state = { cards: {}, done: {}, days: {}, xp: 0, xpDays: {}, best: {}, basket: {} };
+  state = { cards: {}, done: {}, days: {}, xp: 0, xpDays: {}, best: {}, basket: {}, hard: {} };
   write(state);
 }
 
@@ -133,6 +161,10 @@ export function mergeRemote(remote) {
   for (const [k, rb] of Object.entries(remote.basket || {})) {
     const lb = state.basket[k];
     if (!lb || (rb.t || 0) > (lb.t || 0)) state.basket[k] = rb;
+  }
+  for (const [k, rh] of Object.entries(remote.hard || {})) {
+    const lh = state.hard[k];
+    if (!lh || (rh.t || 0) > (lh.t || 0)) state.hard[k] = rh;
   }
   state.xp = Math.max(state.xp, remote.xp || 0);
   write(state, true);
