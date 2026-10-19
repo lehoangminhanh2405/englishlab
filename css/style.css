@@ -224,3 +224,9 @@ mark.hl.bad { background: color-mix(in srgb, var(--bad) 28%, transparent); }
 .missed { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .icon-btn.flag { opacity: .35; font-size: 1.1rem; }
 .icon-btn.flag.on { opacity: 1; color: var(--bad); }
+
+.def-big { font-size: 1.3rem; font-weight: 600; line-height: 1.5; }
+.ans-input { font: inherit; font-size: 1.3rem; width: 100%; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg); color: var(--text); }
+.ans-input:focus { outline: none; border-color: var(--primary); }
+.ans-input:disabled { opacity: 1; }
+.blank { display: inline-block; letter-spacing: .1em; border-bottom: 2px solid var(--muted); margin: 0 4px; color: var(--muted); }

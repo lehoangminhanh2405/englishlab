@@ -89,27 +89,24 @@ export function learnSession(panel, items, { mode = 'learn', title = '', onFinis
   }
 
   // ---------- bước tự điền từ ----------
+  // Người học đọc định nghĩa và tự gõ ra từ (dạng gốc). Câu ví dụ chỉ là ngữ cảnh, từ được che đi.
   function drawRecall(q) {
     const it = q.it;
     const f = findInSentence(it.ex, it.en);
-    const expected = f ? f.hit : it.en;
+    const expected = it.en;
     let hinted = false, checked = false;
 
     panel.innerHTML = `${header()}
       <div class="card learn">
         <span class="badge-step">${mode === 'hard' ? 'Ôn lại từ khó' : 'Tự điền từ'}</span>
-        <div class="learn-sec"><span class="lk-label">Định nghĩa</span><div id="def" lang="en"></div></div>
-        <div class="learn-sec"><span class="lk-label">Điền từ còn thiếu</span>
-          ${f
-            ? `<p class="fill-line" lang="en">${esc(f.before)}<input id="ans" autocomplete="off" autocapitalize="off" spellcheck="false" size="${Math.max(6, expected.length + 1)}" />${esc(f.after)}</p>`
-            : `<p class="fill-line" lang="en"><input id="ans" autocomplete="off" autocapitalize="off" spellcheck="false" size="${Math.max(10, it.en.length + 1)}" /></p><p class="muted">Điền từ hoặc cụm từ phù hợp với định nghĩa.</p>`}
-        </div>
+        <div class="learn-sec"><span class="lk-label">Định nghĩa – hãy gõ từ hoặc cụm từ phù hợp</span><div class="def-big" id="def" lang="en"></div></div>
+        <div class="answer-row"><input id="ans" class="ans-input" placeholder="Gõ từ tiếng Anh…" autocomplete="off" autocapitalize="off" spellcheck="false" lang="en" /></div>
+        ${f ? `<div class="learn-sec"><span class="lk-label">Ví dụ (từ cần tìm bị che)</span><div class="muted" lang="en">${esc(f.before)}<span class="blank">${'_'.repeat(Math.max(4, Math.min(12, it.en.length)))}</span>${esc(f.after)}</div></div>` : ''}
         <div id="hints" class="muted"></div>
         <p id="result" class="feedback"></p>
         <div class="row">
           <button class="btn small" id="hintLetter">💡 Chữ cái đầu</button>
           <button class="btn small" id="hintVi">🇻🇳 Nghĩa tiếng Việt</button>
-          <button class="btn small" id="hintAudio">🔊 Nghe câu</button>
           ${flagBtn(it.key)}
         </div>
         <div class="row"><button class="btn primary" id="check">Kiểm tra</button></div>
@@ -120,15 +117,15 @@ export function learnSession(panel, items, { mode = 'learn', title = '', onFinis
     input.focus();
     document.getElementById('hintLetter').onclick = () => {
       hinted = true;
-      hints.innerHTML += `<div>💡 Bắt đầu bằng "<b>${esc(expected[0])}</b>", ${expected.replace(/\s/g, '').length} chữ cái${/\s/.test(expected) ? `, ${expected.split(/\s+/).length} từ` : ''}</div>`;
+      const n = expected.replace(/\s/g, '').length;
+      hints.innerHTML += `<div>💡 Bắt đầu bằng "<b>${esc(expected[0])}</b>", ${n} chữ cái${/\s/.test(expected) ? `, gồm ${expected.split(/\s+/).length} từ` : ''}</div>`;
       input.focus();
     };
     document.getElementById('hintVi').onclick = () => {
       hinted = true;
-      hints.innerHTML += `<div>🇻🇳 ${esc(it.vi)}${f ? ` — <i>${esc(it.exVi)}</i>` : ''}</div>`;
+      hints.innerHTML += `<div>🇻🇳 ${esc(it.vi)}</div>`;
       input.focus();
     };
-    document.getElementById('hintAudio').onclick = () => speak(it.ex);
 
     const finish = ok => {
       checked = true;
@@ -136,7 +133,7 @@ export function learnSession(panel, items, { mode = 'learn', title = '', onFinis
       ['hintLetter', 'hintVi'].forEach(id => { document.getElementById(id).disabled = true; });
       const res = document.getElementById('result');
       res.className = 'feedback ' + (ok ? 'good' : 'bad');
-      res.innerHTML = ok ? 'Chính xác! 👏' : `Đáp án: <b>${esc(expected)}</b>${expected.toLowerCase() !== it.en.toLowerCase() ? ` (từ gốc: ${esc(it.en)})` : ''}`;
+      res.innerHTML = ok ? 'Chính xác! 👏' : `Đáp án: <b>${esc(expected)}</b>`;
       hints.innerHTML = `<div lang="en">${f ? highlighted(f, ok ? 'hl ok' : 'hl bad') : esc(it.ex)}</div><div>${esc(it.vi)} — <i>${esc(it.exVi)}</i></div>
         <div><a href="${cambridgeUrl(it.en)}" target="_blank" rel="noopener">Xem trên Cambridge Dictionary ↗</a></div>`;
       speak(it.ex);
@@ -161,7 +158,7 @@ export function learnSession(panel, items, { mode = 'learn', title = '', onFinis
       if (checked) return advance();
       const v = norm(input.value);
       if (!v) { input.focus(); return; }
-      finish(v === norm(expected) || v === norm(it.en));
+      finish(v === norm(expected) || (f && v === norm(f.hit)));
     };
     document.getElementById('check').onclick = check;
     input.onkeydown = e => { if (e.key === 'Enter') check(); };
