@@ -1,8 +1,7 @@
-import { giaoTiep } from './data/giao-tiep.js';
-import { congNgheSinhHoc } from './data/cong-nghe-sinh-hoc.js';
+import { TRACK_LIST } from './data/index.js';
 import * as store from './store.js';
 
-const TRACKS = { [giaoTiep.id]: giaoTiep, [congNgheSinhHoc.id]: congNgheSinhHoc };
+const TRACKS = Object.fromEntries(TRACK_LIST.map(t => [t.id, t]));
 const $app = document.getElementById('app');
 
 // ---------- tiện ích ----------
