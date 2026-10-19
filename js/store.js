@@ -19,6 +19,10 @@ export const onChange = f => listeners.add(f);
 state.cards ||= {};   // { key: { box, due } }
 state.done ||= {};    // { "topicKey:skill": số lần hoàn thành }
 state.days ||= {};    // { yyyy-mm-dd: số thẻ đã ôn }
+state.xp ||= 0;       // tổng điểm kinh nghiệm
+state.xpDays ||= {};  // { yyyy-mm-dd: điểm kiếm được trong ngày }
+state.best ||= {};    // { "track/topic:quiz": điểm cao nhất (%) }
+state.basket ||= {};  // giỏ từ: { từ viết thường: { en, vi, ex, exVi, t, del? } }
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -42,8 +46,39 @@ export function grade(key, g) {
   c.t = Date.now();
   state.cards[key] = c;
   state.days[today()] = (state.days[today()] || 0) + 1;
+  bumpXp(g === 0 ? 1 : g === 1 ? 2 : 3);
   write(state);
 }
+
+function bumpXp(n) {
+  state.xp += n;
+  state.xpDays[today()] = (state.xpDays[today()] || 0) + n;
+}
+export function addXp(n) { bumpXp(n); write(state); }
+export const xpTotal = () => state.xp;
+export function xpWeek() {
+  let sum = 0;
+  const d = new Date();
+  for (let i = 0; i < 7; i++, d.setDate(d.getDate() - 1)) sum += state.xpDays[d.toISOString().slice(0, 10)] || 0;
+  return sum;
+}
+
+export function setBest(id, pct) {
+  if (pct > (state.best[id] || 0)) { state.best[id] = pct; write(state); }
+}
+export const getBest = id => state.best[id] || 0;
+
+export function addBasket(e) {
+  const k = e.en.toLowerCase();
+  state.basket[k] = { en: e.en, vi: e.vi || '', ex: e.ex || '', exVi: e.exVi || '', t: Date.now() };
+  write(state);
+}
+export function removeBasket(en) {
+  state.basket[en.toLowerCase()] = { del: true, t: Date.now() };
+  write(state);
+}
+export const inBasket = en => { const b = state.basket[en.toLowerCase()]; return !!b && !b.del; };
+export const basketList = () => Object.values(state.basket).filter(b => !b.del).sort((a, b) => b.t - a.t);
 
 export function markDone(id) {
   state.done[id] = (state.done[id] || 0) + 1;
@@ -69,7 +104,7 @@ export function streak() {
   const d = new Date();
   for (;;) {
     const k = d.toISOString().slice(0, 10);
-    if (state.days[k]) n++;
+    if (state.days[k] || state.xpDays[k]) n++;
     else if (n || k !== today()) break;
     d.setDate(d.getDate() - 1);
   }
@@ -78,7 +113,7 @@ export function streak() {
 export const reviewedToday = () => state.days[today()] || 0;
 
 export function reset() {
-  state = { cards: {}, done: {}, days: {} };
+  state = { cards: {}, done: {}, days: {}, xp: 0, xpDays: {}, best: {}, basket: {} };
   write(state);
 }
 
@@ -93,5 +128,12 @@ export function mergeRemote(remote) {
   }
   for (const [k, v] of Object.entries(remote.done || {})) state.done[k] = Math.max(state.done[k] || 0, v);
   for (const [k, v] of Object.entries(remote.days || {})) state.days[k] = Math.max(state.days[k] || 0, v);
+  for (const [k, v] of Object.entries(remote.xpDays || {})) state.xpDays[k] = Math.max(state.xpDays[k] || 0, v);
+  for (const [k, v] of Object.entries(remote.best || {})) state.best[k] = Math.max(state.best[k] || 0, v);
+  for (const [k, rb] of Object.entries(remote.basket || {})) {
+    const lb = state.basket[k];
+    if (!lb || (rb.t || 0) > (lb.t || 0)) state.basket[k] = rb;
+  }
+  state.xp = Math.max(state.xp, remote.xp || 0);
   write(state, true);
 }

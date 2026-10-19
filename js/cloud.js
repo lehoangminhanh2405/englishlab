@@ -26,10 +26,43 @@ async function push() {
   if (error) throw error;
 }
 
+/** Cập nhật điểm/chuỗi ngày lên bảng xếp hạng; bỏ qua lỗi nếu chưa cài bảng profiles. */
+async function pushStats() {
+  await client.from('profiles').upsert({
+    user_id: user.id, xp_total: store.xpTotal(), xp_week: store.xpWeek(), streak: store.streak(), updated_at: new Date().toISOString(),
+  });
+}
+
+let profile = null;
+export const getProfile = () => profile;
+export const getClient = () => client;
+
+/** Lấy hồ sơ; tạo mới với tên mặc định lấy từ email nếu chưa có. */
+export async function loadProfile() {
+  if (!user) return null;
+  const { data, error } = await client.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
+  if (error) throw error;
+  if (data) return (profile = data);
+  const row = { user_id: user.id, display_name: (user.email || 'Học viên').split('@')[0].slice(0, 30), avatar: '🙂' };
+  const ins = await client.from('profiles').insert(row).select().single();
+  if (ins.error) throw ins.error;
+  return (profile = ins.data);
+}
+
+export async function saveProfile(patch) {
+  const { data, error } = await client.from('profiles').upsert({ user_id: user.id, ...patch }).select().single();
+  if (error) throw error;
+  return (profile = data);
+}
+
 async function syncNow() {
   if (!user) return;
   setStatus('syncing');
-  try { await pull(); await push(); setStatus('synced'); } catch (e) { console.error(e); setStatus('error'); }
+  try {
+    await pull(); await push();
+    loadProfile().then(pushStats).catch(() => {});
+    setStatus('synced');
+  } catch (e) { console.error(e); setStatus('error'); }
 }
 
 function schedulePush() {
@@ -37,19 +70,30 @@ function schedulePush() {
   clearTimeout(timer);
   timer = setTimeout(async () => {
     setStatus('syncing');
-    try { await push(); setStatus('synced'); } catch (e) { console.error(e); setStatus('error'); }
+    try { await push(); pushStats().catch(() => {}); setStatus('synced'); } catch (e) { console.error(e); setStatus('error'); }
   }, 1500);
 }
 
-export async function init() {
+let readyP = Promise.resolve();
+/** Chờ kết nối Supabase và phiên đăng nhập sẵn sàng. */
+export const ready = () => readyP;
+export function init() { return (readyP = start()); }
+
+async function start() {
   if (!enabled) return;
-  const { createClient } = await import(SDK);
-  client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  try {
+    const { createClient } = await import(SDK);
+    client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (e) {
+    console.error('Không tải được Supabase', e);
+    setStatus('error');
+    return;
+  }
   store.onChange(schedulePush);
   client.auth.onAuthStateChange((_evt, session) => {
     const prev = user?.id;
     user = session?.user || null;
-    if (!user) { setStatus('local'); return; }
+    if (!user) { profile = null; setStatus('local'); return; }
     if (user.id !== prev) syncNow();
   });
   const { data } = await client.auth.getSession();

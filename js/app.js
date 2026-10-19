@@ -1,43 +1,16 @@
-import { TRACK_LIST } from './data/index.js';
 import * as store from './store.js';
 import * as cloud from './cloud.js';
-
-const TRACKS = Object.fromEntries(TRACK_LIST.map(t => [t.id, t]));
-const $app = document.getElementById('app');
-
-// ---------- tiện ích ----------
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
-const pick = (a, n) => shuffle(a).slice(0, n);
-
-function speak(text) {
-  if (!('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'en-US';
-  u.rate = 0.9;
-  speechSynthesis.speak(u);
-}
-
-const wordsOf = (track, topic) => topic.words.map((w, i) => ({
-  key: store.cardKey(track.id, topic.id, i), en: w[0], vi: w[1], ex: w[2], exVi: w[3], topic, track,
-}));
-const allWords = () => Object.values(TRACKS).flatMap(t => t.topics.flatMap(tp => wordsOf(t, tp)));
-
-function updateBadge() {
-  const n = allWords().filter(w => store.isDue(w.key)).length;
-  const b = document.getElementById('dueBadge');
-  b.hidden = !n;
-  b.textContent = n;
-}
-
-function render(html) {
-  $app.innerHTML = html;
-  window.scrollTo(0, 0);
-  updateBadge();
-}
-
-const crumbs = items => `<nav class="crumbs">${items.map(([label, href]) => href ? `<a href="${href}">${esc(label)}</a>` : `<span>${esc(label)}</span>`).join(' › ')}</nav>`;
+import {
+  TRACKS, esc, shuffle, pick, speak, wordsOf, allWords, updateBadge, render, crumbs, sentencePool, topicProgress, isUnlocked, settings,
+} from './util.js';
+import { cardSession } from './cards.js';
+import { initLookup, fillIpa } from './lookup.js';
+import { tabListening, tabFill } from './listening.js';
+import { tabReading } from './reading.js';
+import { viewIpa } from './ipa.js';
+import { viewRoadmap, viewHub } from './roadmap.js';
+import { viewBasket } from './basket.js';
+import { viewLeaderboard, viewCommunity, viewProfile } from './social.js';
 
 // ---------- trang chủ ----------
 function viewHome() {
@@ -60,18 +33,21 @@ function viewHome() {
       <p>Từ vựng bằng thẻ nhớ ngắt quãng (SRS), luyện đặt câu, hội thoại và kiểm tra — cho cả giao tiếp hằng ngày và chuyên ngành Công nghệ sinh học.</p>
       <div class="hero-actions">
         <a class="btn primary" href="#/review">Ôn tập hôm nay${due ? ` (${due})` : ''}</a>
-        <a class="btn" href="#/progress">Xem tiến độ</a>
+        <a class="btn" href="#/roadmap/giao-tiep">Lộ trình giao tiếp</a>
+        <a class="btn" href="#/ipa">Bảng IPA</a>
       </div>
     </section>
     <div class="grid two">${Object.values(TRACKS).map(trackCard).join('')}</div>
     <section class="how">
-      <h2>Mỗi chủ đề gồm 5 phần</h2>
+      <h2>Mỗi chủ đề gồm 8 phần</h2>
       <div class="grid five">
         <div class="card mini"><b>📖 Từ vựng</b><span>Danh sách từ kèm ví dụ và phát âm.</span></div>
         <div class="card mini"><b>🃏 Thẻ nhớ</b><span>Học và ôn theo SRS, nhớ lâu hơn.</span></div>
         <div class="card mini"><b>🧩 Đặt câu</b><span>Sắp xếp từ thành câu hoàn chỉnh.</span></div>
         <div class="card mini"><b>🎭 Hội thoại</b><span>Đoạn thoại mẫu, nghe và đối chiếu nghĩa.</span></div>
-        <div class="card mini"><b>✅ Kiểm tra</b><span>Trắc nghiệm nhanh 10 câu.</span></div>
+        <div class="card mini"><b>🎧 Nghe & ✍️ Điền từ</b><span>Nghe câu, chọn đáp án hoặc điền từ thiếu.</span></div>
+        <div class="card mini"><b>📖 Đọc hiểu</b><span>Đoạn văn, câu hỏi, tra từ bằng nhấp đúp.</span></div>
+        <div class="card mini"><b>✅ Kiểm tra</b><span>Trắc nghiệm 10 câu để mở chủ đề kế tiếp.</span></div>
       </div>
     </section>`);
 }
@@ -85,6 +61,7 @@ function viewTrack(trackId) {
     ${crumbs([['Trang chủ', '#/'], [t.title]])}
     <h1>${t.icon} ${esc(t.title)}</h1>
     <p class="lead">${esc(t.desc)}</p>
+    <p><a class="btn primary" href="#/roadmap/${t.id}">🗺️ Xem lộ trình học</a></p>
     ${levels.map(lv => `
       <h2 class="level">${esc(lv)}</h2>
       <div class="grid three">
@@ -103,8 +80,8 @@ function viewTrack(trackId) {
 
 // ---------- trang chủ đề ----------
 const TABS = [
-  ['vocab', '📖 Từ vựng'], ['cards', '🃏 Thẻ nhớ'], ['sentences', '🧩 Đặt câu'],
-  ['dialogue', '🎭 Hội thoại'], ['quiz', '✅ Kiểm tra'],
+  ['vocab', '📖 Từ vựng'], ['cards', '🃏 Thẻ nhớ'], ['sentences', '🧩 Đặt câu'], ['dialogue', '🎭 Hội thoại'],
+  ['listening', '🎧 Nghe'], ['fill', '✍️ Điền từ'], ['reading', '📖 Đọc hiểu'], ['quiz', '✅ Kiểm tra'],
 ];
 
 function viewTopic(trackId, topicId, tab = 'vocab') {
@@ -115,10 +92,11 @@ function viewTopic(trackId, topicId, tab = 'vocab') {
     ${crumbs([['Trang chủ', '#/'], [track.title, `#/track/${track.id}`], [topic.title]])}
     <h1>${topic.icon} ${esc(topic.title)}</h1>
     <p class="lead">${esc(topic.desc)}</p>
+    ${isUnlocked(track, topic) ? '' : `<div class="notice">🔒 Chủ đề này sẽ được mở sau khi bạn đạt từ 70% ở bài kiểm tra của chủ đề trước. Bạn vẫn có thể học trước. <a href="#/roadmap/${track.id}">Xem lộ trình</a></div>`}
     <div class="tabs">${TABS.map(([id, label]) => `<a href="#/topic/${trackId}/${topicId}/${id}" class="${id === tab ? 'active' : ''}">${label}</a>`).join('')}</div>
     <div id="panel"></div>`);
   const panel = document.getElementById('panel');
-  ({ vocab: tabVocab, cards: tabCards, sentences: tabSentences, dialogue: tabDialogue, quiz: tabQuiz }[tab] || tabVocab)(panel, track, topic);
+  ({ vocab: tabVocab, cards: tabCards, sentences: tabSentences, dialogue: tabDialogue, listening: tabListening, fill: tabFill, reading: tabReading, quiz: tabQuiz }[tab] || tabVocab)(panel, track, topic);
 }
 
 function tabVocab(panel, track, topic) {
@@ -128,62 +106,14 @@ function tabVocab(panel, track, topic) {
       <thead><tr><th></th><th>Từ / cụm từ</th><th>Nghĩa</th><th>Ví dụ</th></tr></thead>
       <tbody>${ws.map((w, i) => `<tr>
         <td><button class="icon-btn" data-say="${i}" aria-label="Nghe phát âm">🔊</button></td>
-        <td class="en">${esc(w.en)}</td>
+        <td class="en" lang="en">${esc(w.en)}<div class="ipa" data-ipa="${esc(w.en)}"></div></td>
         <td>${esc(w.vi)}</td>
-        <td><div>${esc(w.ex)}</div><div class="muted">${esc(w.exVi)}</div></td>
+        <td><div lang="en">${esc(w.ex)}</div><div class="muted">${esc(w.exVi)}</div></td>
       </tr>`).join('')}</tbody>
     </table></div>
     <p><a class="btn primary" href="#/topic/${track.id}/${topic.id}/cards">Học bằng thẻ nhớ →</a></p>`;
   panel.querySelectorAll('[data-say]').forEach(b => b.onclick = () => speak(ws[b.dataset.say].en));
-}
-
-// Phiên thẻ nhớ dùng chung cho chủ đề và ôn tập
-function cardSession(panel, cards, { onFinish, title }) {
-  let queue = [...cards], total = cards.length, flipped = false, knew = 0;
-
-  const draw = () => {
-    if (!queue.length) {
-      panel.innerHTML = `<div class="card center"><h2>🎉 Hoàn thành!</h2><p>Bạn đã ôn ${total} thẻ, nhớ ngay ${knew} thẻ.</p>${onFinish()}</div>`;
-      updateBadge();
-      return;
-    }
-    const c = queue[0];
-    panel.innerHTML = `
-      ${title ? `<p class="muted">${title}</p>` : ''}
-      <div class="bar"><i style="width:${(total - queue.length) / total * 100}%"></i></div>
-      <div class="meta">Còn ${queue.length}/${total} thẻ</div>
-      <button class="flash ${flipped ? 'flipped' : ''}" id="flash" aria-label="Lật thẻ">
-        <div class="front"><span class="hint">${esc(c.topic.title)}</span><div class="big">${esc(c.en)}</div><span class="hint">Chạm để xem nghĩa</span></div>
-        <div class="back"><div class="big">${esc(c.vi)}</div><div class="ex">${esc(c.ex)}</div><div class="muted">${esc(c.exVi)}</div></div>
-      </button>
-      <div class="row center">
-        <button class="btn" id="say">🔊 Nghe</button>
-      </div>
-      <div class="grades" ${flipped ? '' : 'hidden'}>
-        <button class="btn bad" data-g="0">Quên<small>10 phút</small></button>
-        <button class="btn mid" data-g="1">Khó<small>1 ngày</small></button>
-        <button class="btn good" data-g="2">Nhớ<small>${nextLabel(c.key)}</small></button>
-      </div>`;
-    const flash = document.getElementById('flash');
-    flash.onclick = () => { flipped = !flipped; draw(); if (flipped) speak(c.en); };
-    document.getElementById('say').onclick = () => speak(c.en);
-    panel.querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
-      const g = +b.dataset.g;
-      store.grade(c.key, g);
-      queue.shift();
-      if (g === 0) queue.push(c); else if (g === 2 && !c.retry) knew++;
-      if (g === 1) { c.retry = true; queue.push(c); }
-      flipped = false;
-      draw();
-    });
-  };
-  draw();
-}
-
-function nextLabel(key) {
-  const box = Math.min(store.INTERVALS.length - 1, (store.getCard(key)?.box ?? 0) + 1);
-  const d = store.INTERVALS[box];
-  return d === 1 ? '1 ngày' : `${d} ngày`;
+  fillIpa(panel);
 }
 
 function tabCards(panel, track, topic) {
@@ -203,16 +133,13 @@ function tabCards(panel, track, topic) {
 
 // ---------- đặt câu ----------
 function tabSentences(panel, track, topic) {
-  const pool = [
-    ...topic.patterns.map(p => ({ en: p[0], vi: p[1] })),
-    ...topic.words.map(w => ({ en: w[2], vi: w[3] })),
-  ];
-  const items = pick(pool, 8);
+  const items = pick(sentencePool(topic), 8);
   let idx = 0, correct = 0;
 
   const draw = () => {
     if (idx >= items.length) {
       store.markDone(`${track.id}/${topic.id}:sentences`);
+      store.addXp(correct * 2 + 4);
       panel.innerHTML = `<div class="card center"><h2>🧩 Hoàn thành!</h2><p>Đúng ${correct}/${items.length} câu.</p>
         <p><button class="btn" id="again">Làm lại</button>
         <a class="btn primary" href="#/topic/${track.id}/${topic.id}/dialogue">Sang hội thoại →</a></p></div>`;
@@ -274,11 +201,11 @@ function tabDialogue(panel, track, topic) {
       <div class="chat">${topic.dialogue.map((l, i) => `
         <div class="bubble ${i % 2 ? 'right' : 'left'}">
           <div class="who">${esc(l[0])}</div>
-          <div class="en">${esc(l[1])} <button class="icon-btn" data-say="${i}" aria-label="Nghe">🔊</button></div>
+          <div class="en" lang="en">${esc(l[1])} <button class="icon-btn" data-say="${i}" aria-label="Nghe">🔊</button></div>
           ${showVi ? `<div class="muted">${esc(l[2])}</div>` : ''}
         </div>`).join('')}</div>
       <h3>Mẫu câu quan trọng</h3>
-      <ul class="patterns">${topic.patterns.map((p, i) => `<li><button class="icon-btn" data-sp="${i}">🔊</button> <b>${esc(p[0])}</b><div class="muted">${esc(p[1])}</div></li>`).join('')}</ul>
+      <ul class="patterns">${topic.patterns.map((p, i) => `<li><button class="icon-btn" data-sp="${i}">🔊</button> <b lang="en">${esc(p[0])}</b><div class="muted">${esc(p[1])}</div></li>`).join('')}</ul>
       <p><button class="btn" id="playall">▶ Nghe cả đoạn</button>
       <a class="btn primary" href="#/topic/${track.id}/${topic.id}/quiz">Làm bài kiểm tra →</a></p>`;
     document.getElementById('vi').onchange = e => { showVi = e.target.checked; draw(); };
@@ -312,10 +239,12 @@ function tabQuiz(panel, track, topic) {
     if (idx >= qs.length) {
       store.markDone(`${track.id}/${topic.id}:quiz`);
       const pct = Math.round(score / qs.length * 100);
+      store.setBest(`${track.id}/${topic.id}:quiz`, pct);
+      store.addXp(score * 2 + (pct >= 70 ? 10 : 0));
       panel.innerHTML = `<div class="card center"><h2>${pct >= 80 ? '🏆' : pct >= 50 ? '👍' : '💪'} ${score}/${qs.length} (${pct}%)</h2>
-        <p>${pct >= 80 ? 'Xuất sắc! Bạn nắm chủ đề này rất tốt.' : 'Hãy ôn lại bằng thẻ nhớ rồi thử lại nhé.'}</p>
+        <p>${pct >= 70 ? 'Chúc mừng! Bạn đã hoàn thành chủ đề này và mở khóa chủ đề tiếp theo.' : 'Cần từ 70% để mở chủ đề tiếp theo. Hãy ôn lại bằng thẻ nhớ rồi thử lại nhé.'}</p>
         <p><button class="btn" id="again">Làm lại</button>
-        <a class="btn primary" href="#/track/${track.id}">Chọn chủ đề khác</a></p></div>`;
+        <a class="btn primary" href="#/roadmap/${track.id}">Xem lộ trình</a></p></div>`;
       document.getElementById('again').onclick = () => tabQuiz(panel, track, topic);
       return;
     }
@@ -397,7 +326,7 @@ function renderAuthBox() {
   if (!cloud.enabled) { box.innerHTML = ''; return; }
   const u = cloud.getUser();
   box.innerHTML = u
-    ? `<span class="sync ${cloud.getStatus()}">${esc(cloud.syncStatusLabel())}</span><a href="#/login" class="user-chip" title="${esc(u.email)}">👤 ${esc(u.email.split('@')[0])}</a>`
+    ? `<span class="sync ${cloud.getStatus()}">${esc(cloud.syncStatusLabel())}</span><a href="#/profile" class="user-chip" title="${esc(u.email)}">👤 ${esc(u.email.split('@')[0])}</a>`
     : `<a class="btn primary small" href="#/login">Đăng nhập</a>`;
 }
 
@@ -408,14 +337,7 @@ function viewLogin() {
       <p><a class="btn primary" href="#/">Về trang chủ</a></p></div>`);
     return;
   }
-  const u = cloud.getUser();
-  if (u) {
-    render(`${crumbs([['Trang chủ', '#/'], ['Tài khoản']])}<div class="card center auth-card"><h2>👤 ${esc(u.email)}</h2>
-      <p>${esc(cloud.syncStatusLabel() || 'Tiến độ của bạn được đồng bộ giữa các thiết bị.')}</p>
-      <p><a class="btn primary" href="#/progress">Xem tiến độ</a> <button class="btn" id="out">Đăng xuất</button></p></div>`);
-    document.getElementById('out').onclick = () => cloud.signOut();
-    return;
-  }
+  if (cloud.getUser()) { location.hash = '#/profile'; return; }
   let mode = 'in';
   const draw = (msg = '', isErr = false) => {
     render(`${crumbs([['Trang chủ', '#/'], ['Đăng nhập']])}
@@ -439,9 +361,9 @@ function viewLogin() {
       const email = form.email.value.trim(), pw = form.pw.value;
       const btn = form.querySelector('button'); btn.disabled = true;
       try {
-        if (mode === 'in') { await cloud.signIn(email, pw); location.hash = '#/progress'; }
+        if (mode === 'in') { await cloud.signIn(email, pw); location.hash = '#/profile'; }
         else if (await cloud.signUp(email, pw)) { mode = 'in'; draw('Đã gửi email xác nhận. Hãy bấm liên kết trong email rồi đăng nhập.'); }
-        else location.hash = '#/progress';
+        else location.hash = '#/profile';
       } catch (err) { draw(err.message || 'Có lỗi xảy ra', true); }
     };
     document.getElementById('toggle').onclick = e => { e.preventDefault(); mode = mode === 'in' ? 'up' : 'in'; draw(); };
@@ -458,6 +380,7 @@ function viewLogin() {
 
 // ---------- router ----------
 function route() {
+  document.querySelector('.menu')?.removeAttribute('open');
   window.speechSynthesis?.cancel();
   const [, a, b, c, d] = location.hash.split('/');
   document.querySelectorAll('[data-nav]').forEach(l => {
@@ -470,8 +393,17 @@ function route() {
   if (a === 'review') return viewReview();
   if (a === 'progress') return viewProgress();
   if (a === 'login') return viewLogin();
+  if (a === 'roadmap') return viewRoadmap(b) || view404();
+  if (['listening', 'listening-fill', 'reading', 'sentences'].includes(a)) return viewHub(a === 'listening-fill' ? 'fill' : a) || view404();
+  if (a === 'ipa') return viewIpa();
+  if (a === 'saved-vocabulary') return viewBasket();
+  if (a === 'leaderboard') return viewLeaderboard(b === 'all' ? 'all' : 'week');
+  if (a === 'community') return viewCommunity(b === 'saved' ? 'saved' : 'all');
+  if (a === 'profile') return viewProfile();
   view404();
 }
+initLookup();
+cloud.init();
 window.addEventListener('hashchange', route);
 route();
 renderAuthBox();
@@ -479,6 +411,6 @@ cloud.onAuthChange(() => {
   renderAuthBox();
   // Làm mới trang tĩnh sau khi đồng bộ; không đụng vào phiên học đang diễn ra.
   const a = location.hash.split('/')[1];
-  if (cloud.getStatus() !== 'syncing' && (!a || ['track', 'progress', 'login'].includes(a))) route();
+  if (cloud.getStatus() !== 'syncing' && (!a || ['track', 'progress', 'login', 'profile', 'roadmap', 'saved-vocabulary', 'leaderboard', 'community'].includes(a))) route();
 });
-cloud.init();
+
