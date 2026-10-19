@@ -28,11 +28,12 @@ const highlighted = (f, cls = 'hl') => `${esc(f.before)}<mark class="${cls}">${e
 
 /**
  * items: các thẻ { key, en, vi, ex, exVi, topic }.
- * mode 'learn': từ mới có bước giới thiệu; mode 'hard': ôn lại từ khó, đúng 2 lần liên tiếp thì bỏ dấu.
+ * mode 'learn': từ mới được đoán dựa trên định nghĩa, nghĩa tiếng Việt và câu ví dụ; mode 'hard': ôn lại từ khó, đúng 2 lần liên tiếp thì bỏ dấu.
  * onFinish(panel, { total, correct, missed }) tự vẽ màn hình kết thúc.
  */
 export function learnSession(panel, items, { mode = 'learn', title = '', onFinish } = {}) {
-  const queue = items.map(it => ({ it, intro: mode === 'learn' && !store.getCard(it.key), retried: false }));
+  // Từ mới được cho thêm manh mối (nghĩa tiếng Việt, bản dịch ví dụ) vì người học chưa biết từ đó.
+  const queue = items.map(it => ({ it, fresh: mode === 'learn' && !store.getCard(it.key), retried: false }));
   const total = items.length;
   const missed = [];
   let correct = 0;
@@ -41,7 +42,7 @@ export function learnSession(panel, items, { mode = 'learn', title = '', onFinis
   const next = () => {
     if (!queue.length) { updateBadge(); return onFinish?.(panel, { total, correct, missed }); }
     const q = queue[0];
-    q.intro ? drawIntro(q) : drawRecall(q);
+    drawRecall(q);
   };
 
   const header = () => `${title ? `<p class="muted">${esc(title)}</p>` : ''}
@@ -65,32 +66,6 @@ export function learnSession(panel, items, { mode = 'learn', title = '', onFinis
     el.textContent = d?.meanings?.[0]?.defs?.[0] || it.vi;
   }
 
-  // ---------- bước giới thiệu ----------
-  function drawIntro(q) {
-    const it = q.it;
-    const f = findInSentence(it.ex, it.en);
-    panel.innerHTML = `${header()}
-      <div class="card learn">
-        <span class="badge-step">Từ mới</span>
-        <div class="learn-word" lang="en">${esc(it.en)} <button class="icon-btn" id="say" aria-label="Nghe">🔊</button></div>
-        <div class="ipa" data-ipa="${esc(it.en)}"></div>
-        <div class="learn-sec"><span class="lk-label">Định nghĩa</span><div id="def" lang="en"></div></div>
-        <div class="learn-sec"><span class="lk-label">Nghĩa tiếng Việt</span><div>${esc(it.vi)}</div></div>
-        <div class="learn-sec"><span class="lk-label">Ví dụ</span>
-          <div lang="en">${f ? highlighted(f) : esc(it.ex)} <button class="icon-btn" id="sayEx" aria-label="Nghe câu">🔊</button></div>
-          <div class="muted">${esc(it.exVi)}</div></div>
-        <p><a href="${cambridgeUrl(it.en)}" target="_blank" rel="noopener">Xem trên Cambridge Dictionary ↗</a></p>
-        <div class="row">${flagBtn(it.key)}<button class="btn primary" id="go">Tiếp: tự điền từ →</button></div>
-      </div>`;
-    fillIpa(panel);
-    fillDef(it, document.getElementById('def'));
-    document.getElementById('say').onclick = () => speak(it.en);
-    document.getElementById('sayEx').onclick = () => speak(it.ex);
-    bindFlag(it.key);
-    speak(it.en);
-    document.getElementById('go').onclick = () => { q.intro = false; drawRecall(q); };
-  }
-
   // ---------- bước tự điền từ ----------
   // Người học đọc định nghĩa và tự gõ ra từ (dạng gốc). Câu ví dụ chỉ là ngữ cảnh, từ được che đi.
   function drawRecall(q) {
@@ -102,14 +77,15 @@ export function learnSession(panel, items, { mode = 'learn', title = '', onFinis
     panel.innerHTML = `${header()}
       <div class="card learn">
         <span class="badge-step">${mode === 'hard' ? 'Ôn lại từ khó' : 'Tự điền từ'}</span>
-        <div class="learn-sec"><span class="lk-label">Định nghĩa – hãy gõ từ hoặc cụm từ phù hợp</span><div class="def-big" id="def" lang="en"></div></div>
+        <div class="learn-sec"><span class="lk-label">Định nghĩa – hãy đoán và gõ từ hoặc cụm từ phù hợp</span><div class="def-big" id="def" lang="en"></div></div>
+        ${q.fresh ? `<div class="learn-sec"><span class="lk-label">Nghĩa tiếng Việt</span><div>${esc(it.vi)}</div></div>` : ''}
         <div class="answer-row"><input id="ans" class="ans-input" placeholder="${esc(mask(it.en))}" autocomplete="off" autocapitalize="off" spellcheck="false" lang="en" /></div>
-        ${f ? `<div class="learn-sec"><span class="lk-label">Ví dụ (mỗi dấu * là một ký tự)</span><div class="muted" lang="en">${esc(f.before)}<span class="blank">${esc(mask(it.en))}</span>${esc(f.after)}</div></div>` : ''}
+        ${f ? `<div class="learn-sec"><span class="lk-label">Ví dụ (mỗi dấu * là một ký tự)</span><div lang="en">${esc(f.before)}<span class="blank">${esc(mask(it.en))}</span>${esc(f.after)}</div>${q.fresh ? `<div class="muted">${esc(it.exVi)}</div>` : ''}</div>` : ''}
         <div id="hints" class="muted"></div>
         <p id="result" class="feedback"></p>
         <div class="row">
           <button class="btn small" id="hintLetter">💡 Chữ cái đầu</button>
-          <button class="btn small" id="hintVi">🇻🇳 Nghĩa tiếng Việt</button>
+          ${q.fresh ? '' : '<button class="btn small" id="hintVi">🇻🇳 Nghĩa tiếng Việt</button>'}
           ${flagBtn(it.key)}
         </div>
         <div class="row"><button class="btn primary" id="check">Kiểm tra</button></div>
@@ -124,7 +100,8 @@ export function learnSession(panel, items, { mode = 'learn', title = '', onFinis
       hints.innerHTML += `<div>💡 Bắt đầu bằng "<b>${esc(expected[0])}</b>", ${n} chữ cái${/\s/.test(expected) ? `, gồm ${expected.split(/\s+/).length} từ` : ''}</div>`;
       input.focus();
     };
-    document.getElementById('hintVi').onclick = () => {
+    const hv = document.getElementById('hintVi');
+    if (hv) hv.onclick = () => {
       hinted = true;
       hints.innerHTML += `<div>🇻🇳 ${esc(it.vi)}</div>`;
       input.focus();
@@ -133,12 +110,15 @@ export function learnSession(panel, items, { mode = 'learn', title = '', onFinis
     const finish = ok => {
       checked = true;
       input.disabled = true;
-      ['hintLetter', 'hintVi'].forEach(id => { document.getElementById(id).disabled = true; });
+      ['hintLetter', 'hintVi'].forEach(id => { const b = document.getElementById(id); if (b) b.disabled = true; });
       const res = document.getElementById('result');
       res.className = 'feedback ' + (ok ? 'good' : 'bad');
       res.innerHTML = ok ? 'Chính xác! 👏' : `Đáp án: <b>${esc(expected)}</b>`;
-      hints.innerHTML = `<div lang="en">${f ? highlighted(f, ok ? 'hl ok' : 'hl bad') : esc(it.ex)}</div><div>${esc(it.vi)} — <i>${esc(it.exVi)}</i></div>
+      hints.innerHTML = `<div class="reveal"><span class="learn-word" lang="en">${esc(it.en)}</span> <button class="icon-btn" id="sayWord" aria-label="Nghe">🔊</button><div class="ipa" data-ipa="${esc(it.en)}"></div></div>
+        <div lang="en">${f ? highlighted(f, ok ? 'hl ok' : 'hl bad') : esc(it.ex)}</div><div>${esc(it.vi)} — <i>${esc(it.exVi)}</i></div>
         <div><a href="${cambridgeUrl(it.en)}" target="_blank" rel="noopener">Xem trên Cambridge Dictionary ↗</a></div>`;
+      document.getElementById('sayWord').onclick = () => speak(it.en);
+      fillIpa(hints);
       speak(it.ex);
 
       // Chấm điểm SRS ở lần làm đầu tiên của từ trong phiên
@@ -150,7 +130,7 @@ export function learnSession(panel, items, { mode = 'learn', title = '', onFinis
         if (mode === 'hard' && !q.retried && store.hardCorrect(it.key)) toast('Đã nhớ rồi! Bỏ khỏi danh sách ôn lại ✔');
       } else {
         if (mode === 'hard') store.hardWrong(it.key); else store.markHard(it.key);
-        if (!q.retried) { q.retried = true; queue.push({ it, intro: false, retried: true }); }
+        if (!q.retried) { q.retried = true; queue.push({ it, fresh: q.fresh, retried: true }); }
       }
       const b = document.getElementById('check');
       b.textContent = 'Từ tiếp theo →';

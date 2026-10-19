@@ -230,3 +230,6 @@ mark.hl.bad { background: color-mix(in srgb, var(--bad) 28%, transparent); }
 .ans-input:focus { outline: none; border-color: var(--primary); }
 .ans-input:disabled { opacity: 1; }
 .blank { display: inline-block; letter-spacing: .15em; font-weight: 700; margin: 0 4px; color: var(--primary); }
+
+.reveal { margin: 6px 0 4px; }
+.reveal .learn-word { font-size: 1.6rem; }
