@@ -1,5 +1,6 @@
 import { TRACK_LIST } from './data/index.js';
 import * as store from './store.js';
+import * as cloud from './cloud.js';
 
 const TRACKS = Object.fromEntries(TRACK_LIST.map(t => [t.id, t]));
 const $app = document.getElementById('app');
@@ -390,6 +391,71 @@ function view404() {
   render(`<div class="card center"><h2>Không tìm thấy trang</h2><p><a class="btn primary" href="#/">Về trang chủ</a></p></div>`);
 }
 
+// ---------- đăng nhập / đồng bộ ----------
+function renderAuthBox() {
+  const box = document.getElementById('authBox');
+  if (!cloud.enabled) { box.innerHTML = ''; return; }
+  const u = cloud.getUser();
+  box.innerHTML = u
+    ? `<span class="sync ${cloud.getStatus()}">${esc(cloud.syncStatusLabel())}</span><a href="#/login" class="user-chip" title="${esc(u.email)}">👤 ${esc(u.email.split('@')[0])}</a>`
+    : `<a class="btn primary small" href="#/login">Đăng nhập</a>`;
+}
+
+function viewLogin() {
+  if (!cloud.enabled) {
+    render(`${crumbs([['Trang chủ', '#/'], ['Tài khoản']])}<div class="card center"><h2>Chưa bật đồng bộ</h2>
+      <p>Quản trị web cần điền thông tin Supabase vào <b>js/config.js</b> (xem README). Hiện tiến độ của bạn chỉ lưu trên trình duyệt này.</p>
+      <p><a class="btn primary" href="#/">Về trang chủ</a></p></div>`);
+    return;
+  }
+  const u = cloud.getUser();
+  if (u) {
+    render(`${crumbs([['Trang chủ', '#/'], ['Tài khoản']])}<div class="card center auth-card"><h2>👤 ${esc(u.email)}</h2>
+      <p>${esc(cloud.syncStatusLabel() || 'Tiến độ của bạn được đồng bộ giữa các thiết bị.')}</p>
+      <p><a class="btn primary" href="#/progress">Xem tiến độ</a> <button class="btn" id="out">Đăng xuất</button></p></div>`);
+    document.getElementById('out').onclick = () => cloud.signOut();
+    return;
+  }
+  let mode = 'in';
+  const draw = (msg = '', isErr = false) => {
+    render(`${crumbs([['Trang chủ', '#/'], ['Đăng nhập']])}
+      <div class="card auth-card">
+        <h2>${mode === 'in' ? 'Đăng nhập' : 'Tạo tài khoản'}</h2>
+        <p>Đăng nhập để đồng bộ tiến độ học giữa điện thoại và máy tính.</p>
+        <form id="authForm">
+          <label>Email<input type="email" id="email" required autocomplete="email" /></label>
+          <label>Mật khẩu<input type="password" id="pw" required minlength="6" autocomplete="${mode === 'in' ? 'current-password' : 'new-password'}" /></label>
+          ${msg ? `<p class="feedback ${isErr ? 'bad' : 'good'}">${esc(msg)}</p>` : ''}
+          <button class="btn primary block" type="submit">${mode === 'in' ? 'Đăng nhập' : 'Đăng ký'}</button>
+        </form>
+        <p class="row between">
+          <a href="#/login" id="toggle">${mode === 'in' ? 'Chưa có tài khoản? Đăng ký' : 'Đã có tài khoản? Đăng nhập'}</a>
+          ${mode === 'in' ? '<a href="#/login" id="forgot">Quên mật khẩu?</a>' : ''}
+        </p>
+      </div>`);
+    const form = document.getElementById('authForm');
+    form.onsubmit = async e => {
+      e.preventDefault();
+      const email = form.email.value.trim(), pw = form.pw.value;
+      const btn = form.querySelector('button'); btn.disabled = true;
+      try {
+        if (mode === 'in') { await cloud.signIn(email, pw); location.hash = '#/progress'; }
+        else if (await cloud.signUp(email, pw)) { mode = 'in'; draw('Đã gửi email xác nhận. Hãy bấm liên kết trong email rồi đăng nhập.'); }
+        else location.hash = '#/progress';
+      } catch (err) { draw(err.message || 'Có lỗi xảy ra', true); }
+    };
+    document.getElementById('toggle').onclick = e => { e.preventDefault(); mode = mode === 'in' ? 'up' : 'in'; draw(); };
+    const forgot = document.getElementById('forgot');
+    if (forgot) forgot.onclick = async e => {
+      e.preventDefault();
+      const email = form.email.value.trim();
+      if (!email) return draw('Nhập email trước rồi bấm "Quên mật khẩu".', true);
+      try { await cloud.resetPassword(email); draw('Đã gửi email đặt lại mật khẩu.'); } catch (err) { draw(err.message, true); }
+    };
+  };
+  draw();
+}
+
 // ---------- router ----------
 function route() {
   window.speechSynthesis?.cancel();
@@ -403,7 +469,16 @@ function route() {
   if (a === 'topic') return viewTopic(b, c, d);
   if (a === 'review') return viewReview();
   if (a === 'progress') return viewProgress();
+  if (a === 'login') return viewLogin();
   view404();
 }
 window.addEventListener('hashchange', route);
 route();
+renderAuthBox();
+cloud.onAuthChange(() => {
+  renderAuthBox();
+  // Làm mới trang tĩnh sau khi đồng bộ; không đụng vào phiên học đang diễn ra.
+  const a = location.hash.split('/')[1];
+  if (cloud.getStatus() !== 'syncing' && (!a || ['track', 'progress', 'login'].includes(a))) route();
+});
+cloud.init();

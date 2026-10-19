@@ -6,11 +6,16 @@ export const INTERVALS = [0, 1, 2, 4, 8, 16, 32]; // ngày, theo hộp 0..6
 function read() {
   try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; }
 }
-function write(s) {
+function write(s, silent) {
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* chế độ riêng tư */ }
+  if (!silent) emit();
 }
 
 let state = read();
+const listeners = new Set();
+const emit = () => listeners.forEach(f => f());
+/** Đăng ký callback chạy mỗi khi tiến độ thay đổi (dùng để đồng bộ lên máy chủ). */
+export const onChange = f => listeners.add(f);
 state.cards ||= {};   // { key: { box, due } }
 state.done ||= {};    // { "topicKey:skill": số lần hoàn thành }
 state.days ||= {};    // { yyyy-mm-dd: số thẻ đã ôn }
@@ -28,12 +33,13 @@ export function isDue(key, now = Date.now()) {
 
 /** grade: 0 = quên, 1 = khó, 2 = nhớ */
 export function grade(key, g) {
-  const c = state.cards[key] || { box: 0, due: 0 };
+  const c = state.cards[key] || { box: 0, due: 0, t: 0 };
   if (g === 0) c.box = 0;
   else if (g === 1) c.box = Math.max(1, c.box);
   else c.box = Math.min(INTERVALS.length - 1, c.box + 1);
   // quên: ôn lại sau 10 phút; còn lại theo hộp
   c.due = Date.now() + (g === 0 ? 10 * 60000 : INTERVALS[c.box] * DAY);
+  c.t = Date.now();
   state.cards[key] = c;
   state.days[today()] = (state.days[today()] || 0) + 1;
   write(state);
@@ -74,4 +80,18 @@ export const reviewedToday = () => state.days[today()] || 0;
 export function reset() {
   state = { cards: {}, done: {}, days: {} };
   write(state);
+}
+
+export const snapshot = () => JSON.parse(JSON.stringify(state));
+
+/** Gộp dữ liệu từ máy chủ: thẻ nào cập nhật gần nhất thì thắng; bộ đếm lấy giá trị lớn hơn. */
+export function mergeRemote(remote) {
+  if (!remote || typeof remote !== 'object') return;
+  for (const [k, rc] of Object.entries(remote.cards || {})) {
+    const lc = state.cards[k];
+    if (!lc || (rc.t || 0) > (lc.t || 0)) state.cards[k] = rc;
+  }
+  for (const [k, v] of Object.entries(remote.done || {})) state.done[k] = Math.max(state.done[k] || 0, v);
+  for (const [k, v] of Object.entries(remote.days || {})) state.days[k] = Math.max(state.days[k] || 0, v);
+  write(state, true);
 }
