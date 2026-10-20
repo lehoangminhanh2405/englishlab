@@ -3,7 +3,7 @@
 Web học tiếng Anh gồm hai lộ trình:
 
 - **Tiếng Anh giao tiếp** – 20 chủ đề theo trình độ A2, B1, B2, C1, C2.
-- **Tiếng Anh chuyên ngành Công nghệ sinh học** – 9 chủ đề (tế bào, DNA/RNA, protein–enzyme, vi sinh, kỹ thuật lab, lên men, công nghệ gen/CRISPR, GMP–QA, viết bài báo).
+- **Tiếng Anh chuyên ngành Công nghệ sinh học** – 21 chủ đề (tế bào, DNA/RNA, protein–enzyme, động vật, thực vật, hóa sinh, vi sinh, miễn dịch, virus, nuôi cấy tế bào, kỹ thuật lab, an toàn lab, lên men, công nghệ gen, tin sinh học, y dược, nông nghiệp–thực phẩm, môi trường, thống kê, GMP–QA, viết bài báo).
 
 Mỗi chủ đề có tối thiểu 50 từ, 5 mẫu câu, 1 hội thoại và 1 bài đọc, gồm 8 phần: Từ vựng · Thẻ nhớ SRS (Leitner) · Đặt câu · Hội thoại · Nghe · Nghe điền từ · Đọc hiểu · Kiểm tra.
 
