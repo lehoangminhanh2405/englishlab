@@ -31,8 +31,10 @@ function viewHome() {
   };
   render(`
     <section class="hero">
-      <h1>Học tiếng Anh theo lộ trình rõ ràng</h1>
-      <p>Từ vựng bằng thẻ nhớ ngắt quãng (SRS), luyện đặt câu, hội thoại và kiểm tra — cho cả giao tiếp hằng ngày và chuyên ngành Công nghệ sinh học.</p>
+      <span class="eyebrow">A1 → C2 · CÔNG NGHỆ SINH HỌC</span>
+      <h1>Học từ vựng bằng cách tự nhớ lại, không phải đọc lướt.</h1>
+      <p>Mỗi từ đi qua định nghĩa, ví dụ và bước tự điền từ. Từ nào chưa nhớ sẽ quay lại đúng lúc, theo lịch ôn ngắt quãng.</p>
+      <div class="facts"><div><b>${allWords().length.toLocaleString("vi-VN")}</b><span>từ vựng</span></div><div><b>${Object.values(TRACKS).reduce((n, t) => n + t.topics.length, 0)}</b><span>chủ đề</span></div><div><b>8</b><span>hoạt động mỗi chủ đề</span></div></div>
       <div class="hero-actions">
         <a class="btn primary" href="#/review">Ôn tập hôm nay${due ? ` (${due})` : ''}</a>
         <a class="btn" href="#/roadmap/giao-tiep">Lộ trình giao tiếp</a>
