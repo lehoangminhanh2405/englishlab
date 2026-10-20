@@ -42,9 +42,15 @@ Bài viết do người dùng đăng, hiển thị công khai. Quản trị viê
 ## Định nghĩa từ vựng
 `js/data/defs-giao-tiep.js` và `js/data/defs-cnsh.js` chứa định nghĩa tiếng Anh đơn giản do tác giả tự soạn (mỗi dòng `từ = định nghĩa`, dòng `topicId|từ = ...` dùng khi một từ có nghĩa khác theo chủ đề). Web **không** sao chép nội dung của Cambridge Dictionary vì có bản quyền; mỗi từ có liên kết mở trang Cambridge để đối chiếu. Muốn dùng dữ liệu Cambridge chính thức, cần đăng ký Cambridge Dictionary API (có giấy phép) rồi thay nguồn trong `js/defs.js`.
 
-## Đăng nhập bằng Google
-1. Google Cloud Console (console.cloud.google.com) → chọn hoặc tạo dự án → **APIs & Services → OAuth consent screen**: loại *External*, điền tên ứng dụng và email, thêm email của bạn vào *Test users* nếu để chế độ Testing.
-2. **Credentials → Create credentials → OAuth client ID → Web application**. Ở *Authorized redirect URIs* thêm: `https://<mã-dự-án>.supabase.co/auth/v1/callback` (copy đúng địa chỉ này ở Supabase → Authentication → Providers → Google). Bấm Create rồi chép **Client ID** và **Client secret**.
-3. Supabase → **Authentication → Providers → Google**: bật *Enable*, dán Client ID và Client secret, Save.
-4. Supabase → **Authentication → URL Configuration**: *Site URL* là địa chỉ web chính (Vercel); *Redirect URLs* thêm đủ địa chỉ Vercel, GitHub Pages và `http://localhost:8080`.
-5. Không cần sửa code hay deploy lại. Người dùng bấm "Tiếp tục với Google" ở trang Đăng nhập; tiến độ học trên máy được gộp vào tài khoản ngay lần đầu.
+## Tài khoản: tên đăng nhập, họ và tên, mật khẩu
+Người dùng tạo tài khoản bằng **tên đăng nhập** (3–20 ký tự: chữ thường không dấu, số, `.` hoặc `_`), **họ và tên đầy đủ** và **mật khẩu** (≥ 6 ký tự). Không cần email.
+
+Supabase bắt buộc mỗi tài khoản có email, nên web tự ghép `<tên đăng nhập>@<USERNAME_EMAIL_DOMAIN>` (xem `js/config.js`) làm email nội bộ; người dùng không thấy và không nhận email nào. Vì vậy:
+1. Supabase → **Authentication → Providers → Email**: **tắt "Confirm email"** (bắt buộc), nếu không sẽ không tạo được tài khoản.
+2. Nếu Supabase báo email không hợp lệ, đổi `USERNAME_EMAIL_DOMAIN` sang một tên miền thật mà bạn sở hữu.
+3. Chạy `supabase/schema-v3.sql` một lần để họ tên được dài tới 60 ký tự.
+4. Không có "quên mật khẩu" bằng email. Người đã đăng nhập tự đổi mật khẩu ở Hồ sơ. Quản trị viên đặt lại mật khẩu cho người quên bằng SQL Editor (đổi `ten.dang.nhap@gmail.com` và mật khẩu mới cho đúng):
+   ```sql
+   update auth.users set encrypted_password = crypt('mat-khau-moi', gen_salt('bf')) where email = 'ten.dang.nhap@gmail.com';
+   ```
+5. Tài khoản tạo bằng email thật từ trước vẫn đăng nhập được: gõ nguyên địa chỉ email vào ô "Tên đăng nhập".

@@ -326,3 +326,11 @@ mark.hl.bad { background: color-mix(in srgb, var(--bad) 28%, transparent); }
 .auth-or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .85rem; margin: 14px 0 0; }
 .auth-or::before, .auth-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .auth-card .btn.google { margin-top: 14px; }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--soft); border-radius: 12px; padding: 4px; gap: 4px; margin-bottom: 12px; }
+.seg button { font: inherit; font-weight: 600; padding: 10px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; min-height: 44px; }
+.seg button[aria-selected="true"] { background: var(--surface); color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.auth-card .hint { margin: -6px 0 0; font-size: .82rem; color: var(--muted); }
+.small-note { font-size: .85rem; margin: 12px 0 0; }
+.auth-card label.switch { display: flex; align-items: center; gap: 8px; font-family: var(--font); font-weight: 400; font-size: .9rem; color: var(--muted); }
+.auth-card input[type="checkbox"] { width: auto; padding: 0; }

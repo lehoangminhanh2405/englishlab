@@ -145,8 +145,8 @@ export async function viewProfile() {
   if (user && !prof && cloud.enabled) { try { prof = await cloud.loadProfile(); } catch { /* chưa cài bảng */ } }
 
   render(`${crumbs([['Trang chủ', '#/'], ['Hồ sơ']])}
-    <h1>${esc(prof?.avatar || '🙂')} ${esc(prof?.display_name || user?.email?.split('@')[0] || 'Khách')}</h1>
-    <p class="lead">${user ? esc(user.email) : 'Bạn chưa đăng nhập – tiến độ chỉ lưu trên trình duyệt này.'}</p>
+    <h1>${esc(prof?.avatar || '🙂')} ${esc(prof?.display_name || (user ? cloud.displayNameOf(user) : 'Khách'))}</h1>
+    <p class="lead">${user ? `Tên đăng nhập: <b>${esc(cloud.usernameOf(user))}</b>` : 'Bạn chưa đăng nhập – tiến độ chỉ lưu trên trình duyệt này.'}</p>
     <div class="grid four stats">
       <div class="card stat"><b>${store.xpTotal()}</b><span>Tổng XP</span></div>
       <div class="card stat"><b>${store.xpWeek()}</b><span>XP tuần này</span></div>
@@ -154,9 +154,13 @@ export async function viewProfile() {
       <div class="card stat"><b>${mastered}</b><span>Từ đã thuộc</span></div>
     </div>
     ${user && prof ? `<h2>Thông tin hiển thị</h2><form class="card" id="profForm">
-        <label class="field">Tên hiển thị<input id="name" maxlength="30" value="${esc(prof.display_name)}" required /></label>
+        <label class="field">Họ và tên hiển thị<input id="name" maxlength="60" value="${esc(prof.display_name)}" required /></label>
         <div class="field">Ảnh đại diện<div class="avatars">${AVATARS.map(a => `<button type="button" class="avatar-opt ${a === prof.avatar ? 'on' : ''}" data-a="${a}">${a}</button>`).join('')}</div></div>
         <button class="btn primary" type="submit">Lưu thông tin</button></form>` : ''}
+    ${user ? `<h2>Đổi mật khẩu</h2><form class="card" id="pwForm" novalidate>
+        <label class="field">Mật khẩu mới<input type="password" id="newPw" minlength="6" autocomplete="new-password" required /></label>
+        <label class="field">Nhập lại mật khẩu mới<input type="password" id="newPw2" minlength="6" autocomplete="new-password" required /></label>
+        <button class="btn" type="submit">Đổi mật khẩu</button></form>` : ''}
     <h2>Cài đặt</h2>
     <div class="card form-grid">
       <label class="field">Giọng đọc mặc định
@@ -203,6 +207,14 @@ export async function viewProfile() {
   document.getElementById('reset').onclick = () => {
     const msg = user ? 'Xóa toàn bộ tiến độ? Dữ liệu trên tài khoản của bạn cũng sẽ bị ghi đè bằng dữ liệu trống và không thể hoàn tác.' : 'Xóa toàn bộ tiến độ trên trình duyệt này? Thao tác không thể hoàn tác.';
     if (confirm(msg)) { store.reset(); toast('Đã xóa tiến độ'); viewProfile(); }
+  };
+  const pwForm = document.getElementById('pwForm');
+  if (pwForm) pwForm.onsubmit = async e => {
+    e.preventDefault();
+    const a = pwForm.newPw.value, b = pwForm.newPw2.value;
+    if (a.length < 6) return toast('Mật khẩu cần ít nhất 6 ký tự.');
+    if (a !== b) return toast('Hai mật khẩu chưa giống nhau.');
+    try { await cloud.changePassword(a); pwForm.reset(); toast('Đã đổi mật khẩu'); } catch (err) { toast(err.message); }
   };
   const form = document.getElementById('profForm');
   if (form) {

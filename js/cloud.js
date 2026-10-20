@@ -1,5 +1,5 @@
 // Đăng nhập và đồng bộ tiến độ qua Supabase. Nếu chưa cấu hình, mọi hàm đều vô hại.
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, USERNAME_EMAIL_DOMAIN } from './config.js';
 import * as store from './store.js';
 
 export const enabled = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
@@ -43,10 +43,10 @@ export async function loadProfile() {
   const { data, error } = await client.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
   if (error) throw error;
   if (data) return (profile = data);
-  const meta = user.user_metadata || {};
-  const name = meta.full_name || meta.name || (user.email || 'Học viên').split('@')[0];
-  const row = { user_id: user.id, display_name: name.slice(0, 30), avatar: '🙂' };
-  const ins = await client.from('profiles').insert(row).select().single();
+  const row = { user_id: user.id, display_name: displayNameOf(user).slice(0, 60), avatar: '🙂' };
+  let ins = await client.from('profiles').insert(row).select().single();
+  // Bảng cũ giới hạn tên 30 ký tự (chưa chạy schema-v3.sql): thử lại với tên rút gọn
+  if (ins.error) ins = await client.from('profiles').insert({ ...row, display_name: row.display_name.slice(0, 30) }).select().single();
   if (ins.error) throw ins.error;
   return (profile = ins.data);
 }
@@ -106,36 +106,51 @@ async function start() {
   if (user) syncNow(); else notify();
 }
 
-export async function signIn(email, password) {
-  const { error } = await client.auth.signInWithPassword({ email, password });
-  if (error) throw error;
-}
+// ---------- tài khoản bằng tên đăng nhập ----------
+export const USERNAME_RE = /^[a-z0-9][a-z0-9._]{2,19}$/;
+export const normalizeUsername = u => String(u || '').trim().toLowerCase();
+const toEmail = u => (u.includes('@') ? u : `${u}@${USERNAME_EMAIL_DOMAIN}`);   // có "@" thì coi là email thật (tài khoản cũ)
 
-/** Trả về true nếu cần xác nhận email trước khi đăng nhập. */
-export async function signUp(email, password) {
-  const { data, error } = await client.auth.signUp({ email, password });
-  if (error) throw error;
-  return !data.session;
-}
+const friendly = err => {
+  const m = err?.message || '';
+  if (/already registered|already been registered|already exists/i.test(m)) return 'Tên đăng nhập đã có người dùng. Hãy chọn tên khác.';
+  if (/invalid login credentials/i.test(m)) return 'Sai tên đăng nhập hoặc mật khẩu.';
+  if (/email address .* is invalid|invalid email/i.test(m)) return 'Máy chủ từ chối tên miền email nội bộ. Quản trị viên cần đổi USERNAME_EMAIL_DOMAIN trong js/config.js (xem README).';
+  if (/password should be at least|weak password/i.test(m)) return 'Mật khẩu quá yếu. Hãy dùng ít nhất 6 ký tự.';
+  if (/rate limit|too many/i.test(m)) return 'Thao tác quá nhiều lần. Hãy đợi một lát rồi thử lại.';
+  return m || 'Có lỗi xảy ra';
+};
 
-/** Đăng nhập bằng tài khoản Google (qua Supabase). Trang sẽ chuyển sang Google rồi quay lại. */
-export async function signInWithGoogle() {
+export async function signInWithUsername(identifier, password) {
   if (!client) throw new Error('Chưa kết nối được máy chủ. Hãy kiểm tra mạng rồi tải lại trang.');
-  try { sessionStorage.setItem('enlearn.afterLogin', '1'); } catch { /* bỏ qua */ }
-  const { error } = await client.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } },
+  const { error } = await client.auth.signInWithPassword({ email: toEmail(normalizeUsername(identifier)), password });
+  if (error) throw new Error(friendly(error));
+}
+
+export async function signUpWithUsername({ username, fullName, password }) {
+  if (!client) throw new Error('Chưa kết nối được máy chủ. Hãy kiểm tra mạng rồi tải lại trang.');
+  const u = normalizeUsername(username);
+  const { data, error } = await client.auth.signUp({
+    email: toEmail(u), password, options: { data: { username: u, full_name: fullName.trim() } },
   });
-  if (error) throw error;
+  if (error) throw new Error(friendly(error));
+  if (!data.session) {
+    // Supabase đang yêu cầu xác nhận email: tài khoản nội bộ không có hộp thư nên không thể xác nhận.
+    throw new Error('Máy chủ đang bật "Confirm email" nên chưa tạo được tài khoản. Quản trị viên cần tắt mục này trong Supabase (Authentication → Providers → Email).');
+  }
+}
+
+export async function changePassword(newPassword) {
+  const { error } = await client.auth.updateUser({ password: newPassword });
+  if (error) throw new Error(friendly(error));
 }
 
 export async function signOut() {
   await client.auth.signOut();
 }
 
-export async function resetPassword(email) {
-  const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
-  if (error) throw error;
-}
+/** Tên hiển thị mặc định: họ tên đầy đủ khi đăng ký, nếu không thì tên đăng nhập. */
+export const displayNameOf = u => (u?.user_metadata?.full_name || u?.user_metadata?.username || (u?.email || '').split('@')[0] || 'Học viên');
+export const usernameOf = u => u?.user_metadata?.username || (u?.email || '').split('@')[0];
 
 export const syncStatusLabel = () => ({ local: '', syncing: 'Đang đồng bộ…', synced: 'Đã đồng bộ ☁️', error: 'Lỗi đồng bộ' }[status]);

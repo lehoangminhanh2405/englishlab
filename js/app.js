@@ -368,7 +368,7 @@ function renderAuthBox() {
   if (!cloud.enabled) { box.innerHTML = ''; return; }
   const u = cloud.getUser();
   box.innerHTML = u
-    ? `<span class="sync ${cloud.getStatus()}">${esc(cloud.syncStatusLabel())}</span><a href="#/profile" class="user-chip" title="${esc(u.email)}">👤 ${esc(u.email.split('@')[0])}</a>`
+    ? `<span class="sync ${cloud.getStatus()}">${esc(cloud.syncStatusLabel())}</span><a href="#/profile" class="user-chip" title="${esc(cloud.usernameOf(u))}">👤 ${esc(cloud.displayNameOf(u))}</a>`
     : `<a class="btn primary small" href="#/login">Đăng nhập</a>`;
 }
 
@@ -381,53 +381,52 @@ function viewLogin() {
   }
   if (cloud.getUser()) { location.hash = '#/profile'; return; }
   let mode = 'in';
-  const draw = (msg = '', isErr = false) => {
-    render(`${crumbs([['Trang chủ', '#/'], ['Đăng nhập']])}
+  const draw = (msg = '', isErr = false, keep = {}) => {
+    const up = mode === 'up';
+    render(`${crumbs([['Trang chủ', '#/'], [up ? 'Tạo tài khoản' : 'Đăng nhập']])}
       <div class="card auth-card">
-        <h2>Đăng nhập</h2>
-        <p>Đăng nhập để lưu tiến độ học và dùng tiếp trên mọi thiết bị. Tiến độ đã học trên máy này sẽ được giữ lại.</p>
-        <button class="btn google block" id="googleBtn" type="button">
-          <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.4-5.7c-2 1.4-4.7 2.2-7.8 2.2-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
-          Tiếp tục với Google</button>
-        <p class="auth-or"><span>hoặc dùng email</span></p>
-        ${mode === 'up' ? '<h3>Tạo tài khoản bằng email</h3>' : ''}
-        <form id="authForm">
-          <label>Email<input type="email" id="email" required autocomplete="email" /></label>
-          <label>Mật khẩu<input type="password" id="pw" required minlength="6" autocomplete="${mode === 'in' ? 'current-password' : 'new-password'}" /></label>
-          ${msg ? `<p class="feedback ${isErr ? 'bad' : 'good'}">${esc(msg)}</p>` : ''}
-          <button class="btn primary block" type="submit">${mode === 'in' ? 'Đăng nhập' : 'Đăng ký'}</button>
+        <div class="seg" role="tablist">
+          <button type="button" role="tab" aria-selected="${!up}" data-mode="in">Đăng nhập</button>
+          <button type="button" role="tab" aria-selected="${up}" data-mode="up">Tạo tài khoản</button>
+        </div>
+        <p class="muted">${up ? 'Tạo tài khoản để lưu tiến độ học và dùng tiếp trên mọi thiết bị. Tiến độ đã học trên máy này sẽ được giữ lại.' : 'Đăng nhập để tiếp tục học từ chỗ bạn đã dừng.'}</p>
+        <form id="authForm" novalidate>
+          <label>Tên đăng nhập
+            <input id="username" autocomplete="username" autocapitalize="none" spellcheck="false" required value="${esc(keep.username || '')}" ${up ? 'placeholder="vd: minhanh.le"' : ''} /></label>
+          ${up ? `<p class="hint">3–20 ký tự: chữ thường không dấu, số, dấu chấm hoặc gạch dưới.</p>
+          <label>Họ và tên đầy đủ
+            <input id="fullName" autocomplete="name" required maxlength="60" value="${esc(keep.fullName || '')}" placeholder="vd: Lê Hoàng Minh Anh" /></label>` : ''}
+          <label>Mật khẩu
+            <input type="password" id="pw" required minlength="6" autocomplete="${up ? 'new-password' : 'current-password'}" /></label>
+          ${up ? `<label>Nhập lại mật khẩu
+            <input type="password" id="pw2" required minlength="6" autocomplete="new-password" /></label>` : ''}
+          <label class="switch"><input type="checkbox" id="showPw"> Hiện mật khẩu</label>
+          ${msg ? `<p class="feedback ${isErr ? 'bad' : 'good'}" role="alert">${esc(msg)}</p>` : ''}
+          <button class="btn primary block" type="submit">${up ? 'Tạo tài khoản' : 'Đăng nhập'}</button>
         </form>
-        <p class="row between">
-          <a href="#/login" id="toggle">${mode === 'in' ? 'Chưa có tài khoản? Đăng ký' : 'Đã có tài khoản? Đăng nhập'}</a>
-          ${mode === 'in' ? '<a href="#/login" id="forgot">Quên mật khẩu?</a>' : ''}
-        </p>
+        ${up ? '' : '<p class="muted small-note">Quên mật khẩu? Vì tài khoản không gắn email, hãy nhờ quản trị viên đặt lại mật khẩu giúp bạn.</p>'}
       </div>`);
-    document.getElementById('googleBtn').onclick = async e => {
-      e.currentTarget.disabled = true;
-      try { await cloud.signInWithGoogle(); }
-      catch (err) {
-        const off = /provider is not enabled|Unsupported provider/i.test(err.message || '');
-        draw(off ? 'Đăng nhập Google chưa được bật trong Supabase (xem README, mục "Đăng nhập bằng Google").' : (err.message || 'Không đăng nhập được bằng Google'), true);
-      }
-    };
     const form = document.getElementById('authForm');
+    document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { mode = b.dataset.mode; draw(); });
+    document.getElementById('showPw').onchange = e => form.querySelectorAll('input[type=password],input[data-pw]').forEach(i => { i.type = e.target.checked ? 'text' : 'password'; i.dataset.pw = '1'; });
     form.onsubmit = async e => {
       e.preventDefault();
-      const email = form.email.value.trim(), pw = form.pw.value;
-      const btn = form.querySelector('button'); btn.disabled = true;
+      const username = cloud.normalizeUsername(form.username.value), pw = form.pw.value;
+      const fullName = up ? form.fullName.value.trim().replace(/\s+/g, ' ') : '';
+      const keepVals = { username, fullName };
+      if (!username || !pw) return draw('Hãy nhập tên đăng nhập và mật khẩu.', true, keepVals);
+      if (up) {
+        if (!cloud.USERNAME_RE.test(username)) return draw('Tên đăng nhập cần 3–20 ký tự, gồm chữ thường không dấu, số, dấu chấm hoặc gạch dưới, và bắt đầu bằng chữ hoặc số.', true, keepVals);
+        if (fullName.length < 2) return draw('Hãy nhập họ và tên đầy đủ của bạn.', true, keepVals);
+        if (pw.length < 6) return draw('Mật khẩu cần ít nhất 6 ký tự.', true, keepVals);
+        if (pw !== form.pw2.value) return draw('Hai mật khẩu chưa giống nhau.', true, keepVals);
+      }
+      const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Đang xử lý…';
       try {
-        if (mode === 'in') { await cloud.signIn(email, pw); location.hash = '#/profile'; }
-        else if (await cloud.signUp(email, pw)) { mode = 'in'; draw('Đã gửi email xác nhận. Hãy bấm liên kết trong email rồi đăng nhập.'); }
-        else location.hash = '#/profile';
-      } catch (err) { draw(err.message || 'Có lỗi xảy ra', true); }
-    };
-    document.getElementById('toggle').onclick = e => { e.preventDefault(); mode = mode === 'in' ? 'up' : 'in'; draw(); };
-    const forgot = document.getElementById('forgot');
-    if (forgot) forgot.onclick = async e => {
-      e.preventDefault();
-      const email = form.email.value.trim();
-      if (!email) return draw('Nhập email trước rồi bấm "Quên mật khẩu".', true);
-      try { await cloud.resetPassword(email); draw('Đã gửi email đặt lại mật khẩu.'); } catch (err) { draw(err.message, true); }
+        if (up) await cloud.signUpWithUsername({ username, fullName, password: pw });
+        else await cloud.signInWithUsername(username, pw);
+        location.hash = '#/profile';
+      } catch (err) { draw(err.message || 'Có lỗi xảy ra', true, keepVals); }
     };
   };
   draw();
@@ -475,6 +474,6 @@ cloud.onAuthChange(() => {
   } catch { /* bỏ qua */ }
   // Làm mới trang tĩnh sau khi đồng bộ; không đụng vào phiên học đang diễn ra.
   const a = location.hash.split('/')[1];
-  if (cloud.getStatus() !== 'syncing' && (!a || ['track', 'progress', 'login', 'profile', 'roadmap', 'saved-vocabulary', 'leaderboard', 'community'].includes(a))) route();
+  if (cloud.getStatus() !== 'syncing' && (!a || ['track', 'progress', 'profile', 'roadmap', 'saved-vocabulary', 'leaderboard', 'community'].includes(a) || (a === 'login' && cloud.getUser()))) route();
 });
 
