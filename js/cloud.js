@@ -1,68 +1,94 @@
-// Đăng nhập và đồng bộ tiến độ qua Supabase. Nếu chưa cấu hình, mọi hàm đều vô hại.
-import { SUPABASE_URL, SUPABASE_ANON_KEY, USERNAME_EMAIL_DOMAIN } from './config.js';
+// Tài khoản (tên đăng nhập + mật khẩu) và đồng bộ tiến độ qua Supabase, gọi thẳng các hàm SQL app_* (xem supabase/schema.sql).
+// Không dùng email và không cần thư viện bên ngoài. Nếu chưa cấu hình thì mọi hàm đều vô hại.
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import * as store from './store.js';
 
 export const enabled = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
-const SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/+esm';
+const BASE = String(SUPABASE_URL || '').replace(/\/+$/, '') + '/rest/v1/rpc/';
+const TKEY = 'enlearn.session';
 
-let client = null, user = null, status = 'local', timer = null;
+let token = null, user = null, status = 'local', timer = null;
+try { token = localStorage.getItem(TKEY); } catch { /* chế độ riêng tư */ }
+
 const subs = new Set();
 const notify = () => subs.forEach(f => f());
 export const onAuthChange = f => subs.add(f);
 export const getUser = () => user;
+export const getProfile = () => user;
 export const getStatus = () => status; // local | syncing | synced | error
-
+export const isAdmin = () => user?.role === 'admin';
 const setStatus = s => { status = s; notify(); };
 
+// ---------- gọi hàm SQL ----------
+const MESSAGES = {
+  unauthorized: 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.',
+  forbidden: 'Bạn không có quyền thực hiện thao tác này.',
+  invalid_username: 'Tên đăng nhập 3–30 ký tự: chữ thường không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang.',
+  invalid_name: 'Họ và tên cần từ 2 đến 60 ký tự.',
+  weak_password: 'Mật khẩu cần từ 6 đến 72 ký tự.',
+  password_same_as_username: 'Không dùng tên đăng nhập làm mật khẩu.',
+  username_taken: 'Tên đăng nhập đã tồn tại.',
+  signup_closed: 'Không mở đăng ký. Tài khoản do quản trị viên cấp.',
+  wrong_password: 'Mật khẩu hiện tại không đúng.',
+  invalid_credentials: 'Sai tên đăng nhập hoặc mật khẩu.',
+  too_many_attempts: 'Đăng nhập sai quá nhiều lần. Hãy thử lại sau 15 phút.',
+  last_admin: 'Phải còn ít nhất một quản trị viên.',
+  cannot_delete_self: 'Bạn không thể tự xóa tài khoản của mình.',
+  not_found: 'Không tìm thấy.',
+  too_fast: 'Bạn đăng hơi nhanh, hãy đợi vài giây nhé.',
+  invalid_post: 'Bài viết cần từ 1 đến 500 ký tự.',
+  invalid_role: 'Vai trò không hợp lệ.',
+  invalid_items: 'Danh sách tài khoản không hợp lệ (tối đa 200 dòng).',
+  too_large: 'Dữ liệu quá lớn.',
+};
+export const vi = code => MESSAGES[code] || code || 'Có lỗi xảy ra';
+
+export async function rpc(fn, args = {}) {
+  if (!enabled) throw new Error('Chưa cấu hình máy chủ.');
+  let res;
+  try {
+    res = await fetch(BASE + fn, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args),
+    });
+  } catch { throw new Error('Không kết nối được máy chủ. Hãy kiểm tra mạng rồi thử lại.'); }
+  let body = null;
+  try { body = await res.json(); } catch { /* không có nội dung */ }
+  if (!res.ok) {
+    if (body?.code === 'PGRST202' || res.status === 404) throw new Error('Máy chủ chưa được cài đặt. Quản trị viên cần chạy supabase/schema.sql.');
+    if (body?.message === 'unauthorized' && user) { clearSession(); notify(); }
+    const e = new Error(vi(body?.message));
+    e.code = body?.message;
+    throw e;
+  }
+  return body;
+}
+const call = (fn, args = {}) => rpc(fn, { p_token: token, ...args });
+
+function setSession(t, u) {
+  token = t; user = u;
+  try { localStorage.setItem(TKEY, t); } catch { /* bỏ qua */ }
+}
+function clearSession() {
+  token = null; user = null; status = 'local';
+  try { localStorage.removeItem(TKEY); } catch { /* bỏ qua */ }
+}
+
+// ---------- đồng bộ tiến độ ----------
 async function pull() {
-  const { data, error } = await client.from('user_progress').select('data').eq('user_id', user.id).maybeSingle();
-  if (error) throw error;
-  if (data) store.mergeRemote(data.data);
+  const data = await call('app_get_progress');
+  if (data && Object.keys(data).length) store.mergeRemote(data);
 }
-
-async function push() {
-  const { error } = await client.from('user_progress')
-    .upsert({ user_id: user.id, data: store.snapshot(), updated_at: new Date().toISOString() });
-  if (error) throw error;
-}
-
-/** Cập nhật điểm/chuỗi ngày lên bảng xếp hạng; bỏ qua lỗi nếu chưa cài bảng profiles. */
-async function pushStats() {
-  await client.from('profiles').upsert({
-    user_id: user.id, xp_total: store.xpTotal(), xp_week: store.xpWeek(), streak: store.streak(), updated_at: new Date().toISOString(),
-  });
-}
-
-let profile = null;
-export const getProfile = () => profile;
-export const getClient = () => client;
-
-/** Lấy hồ sơ; tạo mới với tên mặc định lấy từ email nếu chưa có. */
-export async function loadProfile() {
-  if (!user) return null;
-  const { data, error } = await client.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
-  if (error) throw error;
-  if (data) return (profile = data);
-  const row = { user_id: user.id, display_name: displayNameOf(user).slice(0, 60), avatar: '🙂' };
-  let ins = await client.from('profiles').insert(row).select().single();
-  // Bảng cũ giới hạn tên 30 ký tự (chưa chạy schema-v3.sql): thử lại với tên rút gọn
-  if (ins.error) ins = await client.from('profiles').insert({ ...row, display_name: row.display_name.slice(0, 30) }).select().single();
-  if (ins.error) throw ins.error;
-  return (profile = ins.data);
-}
-
-export async function saveProfile(patch) {
-  const { data, error } = await client.from('profiles').upsert({ user_id: user.id, ...patch }).select().single();
-  if (error) throw error;
-  return (profile = data);
-}
+const push = () => call('app_save_progress', { p_data: store.snapshot() });
+const pushStats = () => call('app_save_stats', { p_xp_total: store.xpTotal(), p_xp_week: store.xpWeek(), p_streak: store.streak() });
 
 async function syncNow() {
   if (!user) return;
   setStatus('syncing');
   try {
     await pull(); await push();
-    loadProfile().then(pushStats).catch(() => {});
+    pushStats().catch(() => {});
     setStatus('synced');
   } catch (e) { console.error(e); setStatus('error'); }
 }
@@ -77,80 +103,75 @@ function schedulePush() {
 }
 
 let readyP = Promise.resolve();
-/** Chờ kết nối Supabase và phiên đăng nhập sẵn sàng. */
+/** Chờ phiên đăng nhập (nếu có) được kiểm tra xong. */
 export const ready = () => readyP;
 export function init() { return (readyP = start()); }
 
 async function start() {
   if (!enabled) return;
-  try {
-    const { createClient } = await import(SDK);
-    // PKCE: Google trả về ?code=... (không dùng #token) nên không xung đột với bộ định tuyến theo #.
-    client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true } });
-  } catch (e) {
-    console.error('Không tải được Supabase', e);
-    setStatus('error');
-    return;
-  }
   store.onChange(schedulePush);
-  client.auth.onAuthStateChange((_evt, session) => {
-    const prev = user?.id;
-    user = session?.user || null;
-    if (!user) { profile = null; setStatus('local'); return; }
-    if (user.id !== prev) syncNow();
-  });
-  const { data } = await client.auth.getSession();
-  user = data.session?.user || null;
-  // Dọn tham số ?code=... còn sót trên thanh địa chỉ sau khi đăng nhập Google
-  if (/[?&](code|error)=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
-  if (user) syncNow(); else notify();
+  if (!token) { notify(); return; }
+  try {
+    const u = await rpc('app_me', { p_token: token });
+    if (u) { user = u; syncNow(); } else clearSession();
+  } catch (e) { console.error(e); /* mất mạng: giữ phiên, thử lại lần sau */ }
+  notify();
 }
 
-// ---------- tài khoản bằng tên đăng nhập ----------
-export const USERNAME_RE = /^[a-z0-9][a-z0-9._]{2,19}$/;
+// ---------- tài khoản ----------
+export const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,29}$/;
 export const normalizeUsername = u => String(u || '').trim().toLowerCase();
-const toEmail = u => (u.includes('@') ? u : `${u}@${USERNAME_EMAIL_DOMAIN}`);   // có "@" thì coi là email thật (tài khoản cũ)
 
-const friendly = err => {
-  const m = err?.message || '';
-  if (/already registered|already been registered|already exists/i.test(m)) return 'Tên đăng nhập đã có người dùng. Hãy chọn tên khác.';
-  if (/invalid login credentials/i.test(m)) return 'Sai tên đăng nhập hoặc mật khẩu.';
-  if (/email address .* is invalid|invalid email/i.test(m)) return 'Máy chủ từ chối tên miền email nội bộ. Quản trị viên cần đổi USERNAME_EMAIL_DOMAIN trong js/config.js (xem README).';
-  if (/password should be at least|weak password/i.test(m)) return 'Mật khẩu quá yếu. Hãy dùng ít nhất 6 ký tự.';
-  if (/rate limit|too many/i.test(m)) return 'Thao tác quá nhiều lần. Hãy đợi một lát rồi thử lại.';
-  return m || 'Có lỗi xảy ra';
-};
+/** {first: true} khi hệ thống chưa có tài khoản nào (cho phép tạo quản trị viên đầu tiên). */
+export const fetchStatus = () => rpc('app_status');
 
-export async function signInWithUsername(identifier, password) {
-  if (!client) throw new Error('Chưa kết nối được máy chủ. Hãy kiểm tra mạng rồi tải lại trang.');
-  const { error } = await client.auth.signInWithPassword({ email: toEmail(normalizeUsername(identifier)), password });
-  if (error) throw new Error(friendly(error));
+function accept(res) {
+  if (res?.error) throw new Error(vi(res.error));
+  setSession(res.token, res.user);
+  notify();
+  syncNow();
 }
 
-export async function signUpWithUsername({ username, fullName, password }) {
-  if (!client) throw new Error('Chưa kết nối được máy chủ. Hãy kiểm tra mạng rồi tải lại trang.');
-  const u = normalizeUsername(username);
-  const { data, error } = await client.auth.signUp({
-    email: toEmail(u), password, options: { data: { username: u, full_name: fullName.trim() } },
-  });
-  if (error) throw new Error(friendly(error));
-  if (!data.session) {
-    // Supabase đang yêu cầu xác nhận email: tài khoản nội bộ không có hộp thư nên không thể xác nhận.
-    throw new Error('Máy chủ đang bật "Confirm email" nên chưa tạo được tài khoản. Quản trị viên cần tắt mục này trong Supabase (Authentication → Providers → Email).');
-  }
+export async function signInWithUsername(username, password) {
+  accept(await rpc('app_login', { p_username: normalizeUsername(username), p_password: password }));
 }
 
-export async function changePassword(newPassword) {
-  const { error } = await client.auth.updateUser({ password: newPassword });
-  if (error) throw new Error(friendly(error));
+export async function registerFirstAdmin({ username, fullName, password }) {
+  accept(await rpc('app_register_first', { p_username: normalizeUsername(username), p_full_name: fullName, p_password: password }));
 }
 
 export async function signOut() {
-  await client.auth.signOut();
+  const t = token;
+  clearSession();
+  notify();
+  if (t) rpc('app_logout', { p_token: t }).catch(() => {});
 }
 
-/** Tên hiển thị mặc định: họ tên đầy đủ khi đăng ký, nếu không thì tên đăng nhập. */
-export const displayNameOf = u => (u?.user_metadata?.full_name || u?.user_metadata?.username || (u?.email || '').split('@')[0] || 'Học viên');
-export const usernameOf = u => u?.user_metadata?.username || (u?.email || '').split('@')[0];
+export const changePassword = (oldPassword, newPassword) => call('app_change_password', { p_old: oldPassword, p_new: newPassword });
+
+export async function saveProfile({ display_name, avatar }) {
+  user = await call('app_update_profile', { p_display_name: display_name, p_avatar: avatar });
+  notify();
+  return user;
+}
+
+export const displayNameOf = u => u?.display_name || u?.full_name || u?.username || 'Học viên';
+export const usernameOf = u => u?.username || '';
+
+// ---------- bảng xếp hạng & cộng đồng ----------
+export const leaderboard = mode => call('app_leaderboard', { p_mode: mode });
+export const posts = saved => call('app_posts', { p_saved: !!saved });
+export const createPost = body => call('app_create_post', { p_body: body });
+export const deletePost = id => call('app_delete_post', { p_id: id });
+export const toggleLike = id => call('app_toggle_like', { p_id: id });
+export const toggleSave = id => call('app_toggle_save', { p_id: id });
+
+// ---------- quản trị viên ----------
+export const adminList = () => call('app_admin_list');
+export const adminCreate = items => call('app_admin_create', { p_items: items });
+export const adminUpdate = (username, patch) => call('app_admin_update', {
+  p_username: username, p_full_name: patch.fullName ?? null, p_role: patch.role ?? null, p_password: patch.password ?? null,
+});
+export const adminDelete = username => call('app_admin_delete', { p_username: username });
 
 export const syncStatusLabel = () => ({ local: '', syncing: 'Đang đồng bộ…', synced: 'Đã đồng bộ ☁️', error: 'Lỗi đồng bộ' }[status]);

@@ -20,15 +20,19 @@ python3 -m http.server 8080   # rồi mở http://localhost:8080
 - **Vercel**: Import repo → Framework Preset *Other*, không cần Build Command, Output Directory để trống (hoặc `.`).
 - **GitHub Pages**: Settings → Pages → Source: *GitHub Actions*. Workflow `.github/workflows/pages.yml` tự deploy khi push lên `main`.
 
-## Đăng nhập & đồng bộ (Supabase)
-1. Tạo dự án miễn phí tại supabase.com.
-2. SQL Editor → chạy nội dung `supabase/schema.sql` (tạo bảng `user_progress` có Row Level Security: mỗi người chỉ đọc/ghi dữ liệu của mình).
-3. Project Settings → API: chép **Project URL** và khóa **anon public** vào `js/config.js`.
-4. Authentication → URL Configuration: thêm địa chỉ Vercel và GitHub Pages của bạn vào *Site URL / Redirect URLs*.
-5. Chạy tiếp `supabase/schema-v2.sql` trong SQL Editor để bật hồ sơ, **bảng xếp hạng** và **cộng đồng**.
-6. Commit và deploy lại. Chưa điền `js/config.js` thì web vẫn chạy bình thường, chỉ lưu tiến độ trên trình duyệt.
+## Tài khoản & đồng bộ (Supabase)
+Tài khoản gồm **tên đăng nhập, họ và tên, mật khẩu** (không dùng email). Web **không mở đăng ký công khai**, giống web xếp lịch cầu lông: tài khoản đầu tiên tự thành quản trị viên, sau đó quản trị viên cấp tài khoản cho người khác.
 
-Tiến độ được gộp theo thẻ (thẻ cập nhật gần nhất thắng), nên học trên nhiều thiết bị không ghi đè lẫn nhau.
+Cài đặt một lần:
+1. Tạo dự án miễn phí tại supabase.com.
+2. SQL Editor → New query → dán toàn bộ `supabase/schema.sql` → **Run**. Chạy lại nhiều lần vẫn an toàn.
+3. Project Settings → API: chép **Project URL** (dạng `https://xxxx.supabase.co`, không phải địa chỉ trang dashboard) và khóa **anon public** vào `js/config.js`. Không dùng khóa `service_role`.
+4. Deploy, rồi **mở web và tạo tài khoản quản trị viên ngay** (trang Đăng nhập tự hiện form "Tạo tài khoản quản trị viên" khi hệ thống còn trống). Ai tạo trước sẽ là quản trị viên, nên làm ngay sau khi deploy.
+5. Vào **Quản trị** (nút trên thanh đầu trang) để cấp tài khoản: mỗi dòng `tên đăng nhập, Họ và tên, [mật khẩu], [admin]`. Mật khẩu để trống thì bằng tên đăng nhập; nên nhắc người dùng đổi ở Hồ sơ.
+
+Chưa điền `js/config.js` thì web vẫn chạy, chỉ lưu tiến độ trên trình duyệt.
+
+Cách bảo vệ: mọi bảng bật RLS và không có policy, trình duyệt chỉ gọi các hàm `app_*` trong `schema.sql`. Mật khẩu băm bcrypt, phiên đăng nhập là mã ngẫu nhiên lưu dạng băm SHA-256 (hết hạn sau 90 ngày), đăng nhập sai 8 lần trong 15 phút sẽ bị khóa tạm. Quản trị viên đặt lại mật khẩu cho người quên ngay trên trang Quản trị. Điểm XP trên bảng xếp hạng do trình duyệt gửi lên nên không chống gian lận tuyệt đối.
 
 ## Thêm nội dung
 Sửa `js/data/giao-tiep.js` hoặc `js/data/cong-nghe-sinh-hoc.js`. Mỗi chủ đề gồm `words` (`[từ, nghĩa, ví dụ, dịch ví dụ]`), `patterns` (`[câu, dịch]`) và `dialogue` (`[người nói, câu, dịch]`).
@@ -37,20 +41,7 @@ Sửa `js/data/giao-tiep.js` hoặc `js/data/cong-nghe-sinh-hoc.js`. Mỗi chủ
 Tra từ nhanh gọi `dictionaryapi.dev` (phiên âm, định nghĩa, đồng nghĩa, âm thanh) và `api.mymemory.translated.net` (dịch từ không có trong kho từ của web); kết quả được lưu đệm trong trình duyệt. Nếu các dịch vụ này lỗi, phần tra từ chỉ thiếu thông tin chứ web vẫn chạy.
 
 ## Kiểm duyệt cộng đồng
-Bài viết do người dùng đăng, hiển thị công khai. Quản trị viên có thể xóa bài vi phạm trong Supabase → Table Editor → `posts`.
+Bài viết do người dùng đăng, hiển thị công khai. Quản trị viên xóa được mọi bài viết ngay trong trang Cộng đồng.
 
 ## Định nghĩa từ vựng
 `js/data/defs-giao-tiep.js` và `js/data/defs-cnsh.js` chứa định nghĩa tiếng Anh đơn giản do tác giả tự soạn (mỗi dòng `từ = định nghĩa`, dòng `topicId|từ = ...` dùng khi một từ có nghĩa khác theo chủ đề). Web **không** sao chép nội dung của Cambridge Dictionary vì có bản quyền; mỗi từ có liên kết mở trang Cambridge để đối chiếu. Muốn dùng dữ liệu Cambridge chính thức, cần đăng ký Cambridge Dictionary API (có giấy phép) rồi thay nguồn trong `js/defs.js`.
-
-## Tài khoản: tên đăng nhập, họ và tên, mật khẩu
-Người dùng tạo tài khoản bằng **tên đăng nhập** (3–20 ký tự: chữ thường không dấu, số, `.` hoặc `_`), **họ và tên đầy đủ** và **mật khẩu** (≥ 6 ký tự). Không cần email.
-
-Supabase bắt buộc mỗi tài khoản có email, nên web tự ghép `<tên đăng nhập>@<USERNAME_EMAIL_DOMAIN>` (xem `js/config.js`) làm email nội bộ; người dùng không thấy và không nhận email nào. Vì vậy:
-1. Supabase → **Authentication → Providers → Email**: **tắt "Confirm email"** (bắt buộc), nếu không sẽ không tạo được tài khoản.
-2. Nếu Supabase báo email không hợp lệ, đổi `USERNAME_EMAIL_DOMAIN` sang một tên miền thật mà bạn sở hữu.
-3. Chạy `supabase/schema-v3.sql` một lần để họ tên được dài tới 60 ký tự.
-4. Không có "quên mật khẩu" bằng email. Người đã đăng nhập tự đổi mật khẩu ở Hồ sơ. Quản trị viên đặt lại mật khẩu cho người quên bằng SQL Editor (đổi `ten.dang.nhap@gmail.com` và mật khẩu mới cho đúng):
-   ```sql
-   update auth.users set encrypted_password = crypt('mat-khau-moi', gen_salt('bf')) where email = 'ten.dang.nhap@gmail.com';
-   ```
-5. Tài khoản tạo bằng email thật từ trước vẫn đăng nhập được: gõ nguyên địa chỉ email vào ô "Tên đăng nhập".

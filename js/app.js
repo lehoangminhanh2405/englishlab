@@ -14,6 +14,7 @@ import { viewIpa } from './ipa.js';
 import { viewRoadmap, viewHub } from './roadmap.js';
 import { viewBasket } from './basket.js';
 import { viewLeaderboard, viewCommunity, viewProfile } from './social.js';
+import { viewAdmin } from './admin.js';
 
 // ---------- trang chủ ----------
 function viewHome() {
@@ -368,62 +369,65 @@ function renderAuthBox() {
   if (!cloud.enabled) { box.innerHTML = ''; return; }
   const u = cloud.getUser();
   box.innerHTML = u
-    ? `<span class="sync ${cloud.getStatus()}">${esc(cloud.syncStatusLabel())}</span><a href="#/profile" class="user-chip" title="${esc(cloud.usernameOf(u))}">👤 ${esc(cloud.displayNameOf(u))}</a>`
+    ? `<span class="sync ${cloud.getStatus()}">${esc(cloud.syncStatusLabel())}</span>${cloud.isAdmin() ? '<a href="#/admin" class="btn small">Quản trị</a>' : ''}<a href="#/profile" class="user-chip" title="${esc(cloud.usernameOf(u))}">👤 ${esc(cloud.displayNameOf(u))}</a>`
     : `<a class="btn primary small" href="#/login">Đăng nhập</a>`;
 }
 
-function viewLogin() {
+async function viewLogin() {
   if (!cloud.enabled) {
     render(`${crumbs([['Trang chủ', '#/'], ['Tài khoản']])}<div class="card center"><h2>Chưa bật đồng bộ</h2>
       <p>Quản trị web cần điền thông tin Supabase vào <b>js/config.js</b> (xem README). Hiện tiến độ của bạn chỉ lưu trên trình duyệt này.</p>
       <p><a class="btn primary" href="#/">Về trang chủ</a></p></div>`);
     return;
   }
+  await cloud.ready();
   if (cloud.getUser()) { location.hash = '#/profile'; return; }
-  let mode = 'in';
+  render(`${crumbs([['Trang chủ', '#/'], ['Đăng nhập']])}<p class="muted">Đang tải…</p>`);
+  let first = false;
+  try { first = (await cloud.fetchStatus()).first; }
+  catch (e) { render(`${crumbs([['Trang chủ', '#/'], ['Đăng nhập']])}<div class="card center"><h2>Chưa dùng được</h2><p>${esc(e.message)}</p></div>`); return; }
+
+  // Hệ thống chưa có ai: tạo quản trị viên đầu tiên. Sau đó không mở đăng ký, tài khoản do quản trị viên cấp.
   const draw = (msg = '', isErr = false, keep = {}) => {
-    const up = mode === 'up';
-    render(`${crumbs([['Trang chủ', '#/'], [up ? 'Tạo tài khoản' : 'Đăng nhập']])}
+    render(`${crumbs([['Trang chủ', '#/'], [first ? 'Tạo quản trị viên' : 'Đăng nhập']])}
       <div class="card auth-card">
-        <div class="seg" role="tablist">
-          <button type="button" role="tab" aria-selected="${!up}" data-mode="in">Đăng nhập</button>
-          <button type="button" role="tab" aria-selected="${up}" data-mode="up">Tạo tài khoản</button>
-        </div>
-        <p class="muted">${up ? 'Tạo tài khoản để lưu tiến độ học và dùng tiếp trên mọi thiết bị. Tiến độ đã học trên máy này sẽ được giữ lại.' : 'Đăng nhập để tiếp tục học từ chỗ bạn đã dừng.'}</p>
+        <h2>${first ? 'Tạo tài khoản quản trị viên' : 'Đăng nhập'}</h2>
+        <p class="muted">${first ? 'Hệ thống chưa có tài khoản nào. Tài khoản đầu tiên sẽ là quản trị viên và cấp tài khoản cho người khác.' : 'Đăng nhập để lưu tiến độ học và dùng tiếp trên mọi thiết bị. Tiến độ đã học trên máy này sẽ được giữ lại.'}</p>
         <form id="authForm" novalidate>
           <label>Tên đăng nhập
-            <input id="username" autocomplete="username" autocapitalize="none" spellcheck="false" required value="${esc(keep.username || '')}" ${up ? 'placeholder="vd: minhanh.le"' : ''} /></label>
-          ${up ? `<p class="hint">3–20 ký tự: chữ thường không dấu, số, dấu chấm hoặc gạch dưới.</p>
+            <input id="username" autocomplete="username" autocapitalize="none" spellcheck="false" required value="${esc(keep.username || '')}" ${first ? 'placeholder="vd: admin"' : ''} /></label>
+          ${first ? `<p class="hint">3–30 ký tự: chữ thường không dấu, số, dấu chấm, gạch dưới hoặc gạch ngang.</p>
           <label>Họ và tên đầy đủ
             <input id="fullName" autocomplete="name" required maxlength="60" value="${esc(keep.fullName || '')}" placeholder="vd: Lê Hoàng Minh Anh" /></label>` : ''}
           <label>Mật khẩu
-            <input type="password" id="pw" required minlength="6" autocomplete="${up ? 'new-password' : 'current-password'}" /></label>
-          ${up ? `<label>Nhập lại mật khẩu
+            <input type="password" id="pw" required minlength="6" autocomplete="${first ? 'new-password' : 'current-password'}" /></label>
+          ${first ? `<label>Nhập lại mật khẩu
             <input type="password" id="pw2" required minlength="6" autocomplete="new-password" /></label>` : ''}
           <label class="switch"><input type="checkbox" id="showPw"> Hiện mật khẩu</label>
           ${msg ? `<p class="feedback ${isErr ? 'bad' : 'good'}" role="alert">${esc(msg)}</p>` : ''}
-          <button class="btn primary block" type="submit">${up ? 'Tạo tài khoản' : 'Đăng nhập'}</button>
+          <button class="btn primary block" type="submit">${first ? 'Tạo quản trị viên' : 'Đăng nhập'}</button>
         </form>
-        ${up ? '' : '<p class="muted small-note">Quên mật khẩu? Vì tài khoản không gắn email, hãy nhờ quản trị viên đặt lại mật khẩu giúp bạn.</p>'}
+        ${first ? '' : '<p class="muted small-note">Chưa có tài khoản hoặc quên mật khẩu? Hãy liên hệ quản trị viên để được cấp hoặc đặt lại.</p>'}
       </div>`);
     const form = document.getElementById('authForm');
-    document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { mode = b.dataset.mode; draw(); });
-    document.getElementById('showPw').onchange = e => form.querySelectorAll('input[type=password],input[data-pw]').forEach(i => { i.type = e.target.checked ? 'text' : 'password'; i.dataset.pw = '1'; });
+    document.getElementById('showPw').onchange = e => form.querySelectorAll('input[data-pw]').forEach(i => { i.type = e.target.checked ? 'text' : 'password'; });
+    form.querySelectorAll('input[type=password]').forEach(i => { i.dataset.pw = '1'; });
     form.onsubmit = async e => {
       e.preventDefault();
       const username = cloud.normalizeUsername(form.username.value), pw = form.pw.value;
-      const fullName = up ? form.fullName.value.trim().replace(/\s+/g, ' ') : '';
+      const fullName = first ? form.fullName.value.trim().replace(/\s+/g, ' ') : '';
       const keepVals = { username, fullName };
       if (!username || !pw) return draw('Hãy nhập tên đăng nhập và mật khẩu.', true, keepVals);
-      if (up) {
-        if (!cloud.USERNAME_RE.test(username)) return draw('Tên đăng nhập cần 3–20 ký tự, gồm chữ thường không dấu, số, dấu chấm hoặc gạch dưới, và bắt đầu bằng chữ hoặc số.', true, keepVals);
+      if (first) {
+        if (!cloud.USERNAME_RE.test(username)) return draw(cloud.vi('invalid_username'), true, keepVals);
         if (fullName.length < 2) return draw('Hãy nhập họ và tên đầy đủ của bạn.', true, keepVals);
-        if (pw.length < 6) return draw('Mật khẩu cần ít nhất 6 ký tự.', true, keepVals);
+        if (pw.length < 6) return draw(cloud.vi('weak_password'), true, keepVals);
+        if (pw === username) return draw(cloud.vi('password_same_as_username'), true, keepVals);
         if (pw !== form.pw2.value) return draw('Hai mật khẩu chưa giống nhau.', true, keepVals);
       }
       const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Đang xử lý…';
       try {
-        if (up) await cloud.signUpWithUsername({ username, fullName, password: pw });
+        if (first) await cloud.registerFirstAdmin({ username, fullName, password: pw });
         else await cloud.signInWithUsername(username, pw);
         location.hash = '#/profile';
       } catch (err) { draw(err.message || 'Có lỗi xảy ra', true, keepVals); }
@@ -456,6 +460,7 @@ function route() {
   if (a === 'leaderboard') return viewLeaderboard(b === 'all' ? 'all' : 'week');
   if (a === 'community') return viewCommunity(b === 'saved' ? 'saved' : 'all');
   if (a === 'profile') return viewProfile();
+  if (a === 'admin') return viewAdmin();
   view404();
 }
 initLookup();
@@ -474,6 +479,6 @@ cloud.onAuthChange(() => {
   } catch { /* bỏ qua */ }
   // Làm mới trang tĩnh sau khi đồng bộ; không đụng vào phiên học đang diễn ra.
   const a = location.hash.split('/')[1];
-  if (cloud.getStatus() !== 'syncing' && (!a || ['track', 'progress', 'profile', 'roadmap', 'saved-vocabulary', 'leaderboard', 'community'].includes(a) || (a === 'login' && cloud.getUser()))) route();
+  if (cloud.getStatus() !== 'syncing' && (!a || ['track', 'progress', 'profile', 'admin', 'roadmap', 'saved-vocabulary', 'leaderboard', 'community'].includes(a) || (a === 'login' && cloud.getUser()))) route();
 });
 
