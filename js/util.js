@@ -15,25 +15,13 @@ const readSettings = () => { try { return JSON.parse(localStorage.getItem(SKEY))
 export const settings = {
   get accent() { return readSettings().accent || 'en-US'; },
   get unlockAll() { return !!readSettings().unlockAll; },
+  get rate() { return readSettings().rate || 0.9; },
+  get(k) { return readSettings()[k]; },
   set(k, v) { try { localStorage.setItem(SKEY, JSON.stringify({ ...readSettings(), [k]: v })); } catch { /* bỏ qua */ } },
 };
 
-// ---------- phát âm ----------
-function voiceFor(lang) {
-  const vs = window.speechSynthesis?.getVoices?.() || [];
-  return vs.find(v => v.lang.replace('_', '-') === lang) || vs.find(v => v.lang.startsWith(lang.slice(0, 2)));
-}
-export function speak(text, { rate = 0.9, lang = settings.accent } = {}) {
-  if (!('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = lang;
-  u.rate = rate;
-  const v = voiceFor(lang);
-  if (v) u.voice = v;
-  speechSynthesis.speak(u);
-}
-if ('speechSynthesis' in window) speechSynthesis.getVoices();
+// ---------- phát âm (xem speech.js) ----------
+export { speak, speakDialogue, stopSpeaking, listVoices, scoreVoice, isNatural, setHumanVoice, pickVoice } from './speech.js';
 
 // ---------- dữ liệu từ vựng ----------
 export const wordsOf = (track, topic) => topic.words.map((w, i) => ({

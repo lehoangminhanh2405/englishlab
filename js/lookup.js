@@ -2,7 +2,7 @@
 // Dữ liệu từ điển lấy từ dictionaryapi.dev, nghĩa tiếng Việt lấy từ kho từ của web hoặc MyMemory; kết quả được lưu đệm.
 import { TRACK_LIST } from './data/index.js';
 import * as store from './store.js';
-import { esc, speak, toast } from './util.js';
+import { esc, speak, toast, setHumanVoice } from './util.js';
 
 const CKEY = 'enlearn.dict.v1';
 let cache = {};
@@ -46,6 +46,13 @@ export function dict(word) {
   pending.set(k, p);
   return p;
 }
+
+// Từ đơn được đọc bằng bản ghi âm người thật (nếu từ điển có), không thì dùng giọng máy.
+setHumanVoice(async (word, lang) => {
+  if (!/^[A-Za-z][A-Za-z'-]*$/.test(word)) return null;
+  const d = await dict(word);
+  return (lang === 'en-GB' ? d?.uk || d?.us : d?.us || d?.uk) || null;
+});
 
 export async function ipaOf(word) {
   // Cụm nhiều từ không có trong từ điển; bỏ qua để khỏi gọi mạng vô ích.

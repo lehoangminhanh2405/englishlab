@@ -1,7 +1,7 @@
 // Bảng xếp hạng, cộng đồng và hồ sơ cá nhân (cần Supabase đã cài schema-v2.sql).
 import * as store from './store.js';
 import * as cloud from './cloud.js';
-import { esc, render, crumbs, toast, settings, allWords } from './util.js';
+import { esc, render, crumbs, toast, settings, allWords, speak, listVoices, isNatural } from './util.js';
 import { getTheme, applyTheme } from './theme.js';
 
 const AVATARS = ['🙂', '😎', '🤓', '🦊', '🐼', '🐯', '🦉', '🐬', '🌱', '🚀', '🎧', '🧬'];
@@ -161,6 +161,12 @@ export async function viewProfile() {
     <div class="card form-grid">
       <label class="field">Giọng đọc mặc định
         <select id="accent"><option value="en-US" ${settings.accent === 'en-US' ? 'selected' : ''}>Giọng Mỹ</option><option value="en-GB" ${settings.accent === 'en-GB' ? 'selected' : ''}>Giọng Anh</option></select></label>
+      <label class="field">Giọng đọc
+        <select id="voiceSel"></select></label>
+      <label class="field">Tốc độ đọc
+        <select id="rateSel"><option value="0.7">Chậm (0,7)</option><option value="0.8">Hơi chậm (0,8)</option><option value="0.9">Bình thường (0,9)</option><option value="1">Nhanh (1,0)</option><option value="1.1">Rất nhanh (1,1)</option></select></label>
+      <div class="row"><button class="btn" id="voiceTest" type="button">▶ Nghe thử giọng</button></div>
+      <p class="muted" id="voiceHint"></p>
       <label class="field">Màu nền
         <select id="themeSel"><option value="auto">Tự động (theo thiết bị)</option><option value="light">Sáng</option><option value="dark">Tối</option><option value="sepia">Giấy (ấm, dịu mắt)</option></select></label>
       <label class="switch"><input type="checkbox" id="unlock" ${settings.unlockAll ? 'checked' : ''}> Mở khóa tất cả chủ đề trong lộ trình</label>
@@ -169,7 +175,25 @@ export async function viewProfile() {
       ${user ? '<button class="btn" id="out">Đăng xuất</button>' : '<a class="btn primary" href="#/login">Đăng nhập</a>'}
       <button class="btn" id="reset">Xóa toàn bộ tiến độ</button></div>`);
 
-  document.getElementById('accent').onchange = e => { settings.set('accent', e.target.value); toast('Đã đổi giọng đọc'); };
+  const voiceSel = document.getElementById('voiceSel'), rateSel = document.getElementById('rateSel'), hint = document.getElementById('voiceHint');
+  const fillVoices = () => {
+    const vs = listVoices(settings.accent);
+    const saved = settings.get('voice:' + settings.accent);
+    voiceSel.innerHTML = vs.length
+      ? vs.map((v, i) => `<option value="${esc(v.voiceURI)}" ${(saved ? v.voiceURI === saved : i === 0) ? 'selected' : ''}>${esc(v.name)}${isNatural(v) ? ' ★ tự nhiên' : ''}</option>`).join('')
+      : '<option>Thiết bị chưa có giọng tiếng Anh</option>';
+    const best = vs[0];
+    hint.textContent = best && isNatural(best)
+      ? 'Đang dùng giọng tự nhiên. Từ đơn còn được phát bằng bản ghi âm người thật khi có.'
+      : 'Máy bạn chỉ có giọng máy thông thường. Dùng trình duyệt Microsoft Edge (có giọng "Natural" miễn phí) hoặc cài thêm giọng chất lượng cao trong cài đặt hệ điều hành để nghe tự nhiên hơn. Từ đơn vẫn được phát bằng bản ghi âm người thật khi có.';
+  };
+  fillVoices();
+  window.speechSynthesis?.addEventListener?.('voiceschanged', fillVoices);
+  rateSel.value = String(settings.rate);
+  voiceSel.onchange = () => settings.set('voice:' + settings.accent, voiceSel.value);
+  rateSel.onchange = e => settings.set('rate', +e.target.value);
+  document.getElementById('voiceTest').onclick = () => speak('Good morning! How are you today? I would like to book a table for two, please.');
+  document.getElementById('accent').onchange = e => { settings.set('accent', e.target.value); fillVoices(); toast('Đã đổi giọng đọc'); };
   const ts = document.getElementById('themeSel');
   ts.value = getTheme();
   ts.onchange = e => applyTheme(e.target.value);

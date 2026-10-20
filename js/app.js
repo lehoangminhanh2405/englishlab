@@ -1,7 +1,7 @@
 import * as store from './store.js';
 import * as cloud from './cloud.js';
 import {
-  TRACKS, esc, shuffle, pick, speak, wordsOf, allWords, updateBadge, render, crumbs, sentencePool, topicProgress, isUnlocked, settings,
+  TRACKS, esc, shuffle, pick, speak, speakDialogue, stopSpeaking, wordsOf, allWords, updateBadge, render, crumbs, sentencePool, topicProgress, isUnlocked, settings,
 } from './util.js';
 import { cardSession } from './cards.js';
 import { learnSession, missedList } from './learn.js';
@@ -256,9 +256,7 @@ function tabDialogue(panel, track, topic) {
     panel.querySelectorAll('[data-say]').forEach(b => b.onclick = () => speak(topic.dialogue[b.dataset.say][1]));
     panel.querySelectorAll('[data-sp]').forEach(b => b.onclick = () => speak(topic.patterns[b.dataset.sp][0]));
     document.getElementById('playall').onclick = () => {
-      if (!('speechSynthesis' in window)) return;
-      speechSynthesis.cancel();
-      topic.dialogue.forEach(l => { const u = new SpeechSynthesisUtterance(l[1]); u.lang = 'en-US'; u.rate = 0.9; speechSynthesis.speak(u); });
+      speakDialogue(topic.dialogue.map(l => l[1]));
     };
   };
   draw();
@@ -426,7 +424,7 @@ function viewLogin() {
 function route() {
   document.querySelector('.menu')?.removeAttribute('open');
   navEl?.classList.remove('open');
-  window.speechSynthesis?.cancel();
+  stopSpeaking();
   const [, a, b, c, d] = location.hash.split('/');
   document.querySelectorAll('[data-nav]').forEach(l => {
     const k = l.dataset.nav;
