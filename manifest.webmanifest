@@ -1,0 +1,14 @@
+{
+  "name": "EnglishLab – Tiếng Anh giao tiếp & Công nghệ sinh học",
+  "short_name": "EnglishLab",
+  "description": "Học từ vựng bằng thẻ nhớ SRS, tự điền từ, nghe, đọc hiểu.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F4F7F8",
+  "theme_color": "#0B6B67",
+  "lang": "vi",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

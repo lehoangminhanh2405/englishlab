@@ -2,6 +2,7 @@
 import * as store from './store.js';
 import * as cloud from './cloud.js';
 import { esc, render, crumbs, toast, settings, allWords } from './util.js';
+import { getTheme, applyTheme } from './theme.js';
 
 const AVATARS = ['🙂', '😎', '🤓', '🦊', '🐼', '🐯', '🦉', '🐬', '🌱', '🚀', '🎧', '🧬'];
 
@@ -160,6 +161,8 @@ export async function viewProfile() {
     <div class="card form-grid">
       <label class="field">Giọng đọc mặc định
         <select id="accent"><option value="en-US" ${settings.accent === 'en-US' ? 'selected' : ''}>Giọng Mỹ</option><option value="en-GB" ${settings.accent === 'en-GB' ? 'selected' : ''}>Giọng Anh</option></select></label>
+      <label class="field">Màu nền
+        <select id="themeSel"><option value="auto">Tự động (theo thiết bị)</option><option value="light">Sáng</option><option value="dark">Tối</option><option value="sepia">Giấy (ấm, dịu mắt)</option></select></label>
       <label class="switch"><input type="checkbox" id="unlock" ${settings.unlockAll ? 'checked' : ''}> Mở khóa tất cả chủ đề trong lộ trình</label>
     </div>
     <div class="row"><a class="btn" href="#/progress">📊 Xem tiến độ chi tiết</a>
@@ -167,6 +170,9 @@ export async function viewProfile() {
       <button class="btn" id="reset">Xóa toàn bộ tiến độ</button></div>`);
 
   document.getElementById('accent').onchange = e => { settings.set('accent', e.target.value); toast('Đã đổi giọng đọc'); };
+  const ts = document.getElementById('themeSel');
+  ts.value = getTheme();
+  ts.onchange = e => applyTheme(e.target.value);
   document.getElementById('unlock').onchange = e => settings.set('unlockAll', e.target.checked);
   const out = document.getElementById('out');
   if (out) out.onclick = () => cloud.signOut();

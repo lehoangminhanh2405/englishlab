@@ -126,7 +126,41 @@ async function open(word, rect) {
   };
 }
 
+// Trên điện thoại, nhấp đúp khó chính xác: khi chọn một từ (nhấn giữ) thì hiện nút "Tra từ" ngay cạnh.
+let fab = null;
+const hideFab = () => { fab?.remove(); fab = null; };
+
+function selectedWord() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) return null;
+  const el = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+  if (!el?.closest || !el.closest('[lang="en"]') || el.closest('button, input, textarea, .lookup')) return null;
+  const w = sel.toString().trim().replace(/^[^A-Za-z]+|[^A-Za-z]+$/g, '');
+  return /^[A-Za-z][A-Za-z'-]*$/.test(w) ? { w, rect: sel.getRangeAt(0).getBoundingClientRect() } : null;
+}
+
+function watchTouchSelection() {
+  if (!window.matchMedia?.('(pointer: coarse)').matches) return;
+  let timer;
+  document.addEventListener('selectionchange', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const hit = selectedWord();
+      if (!hit) return hideFab();
+      hideFab();
+      fab = document.createElement('button');
+      fab.className = 'lk-fab';
+      fab.textContent = 'Tra từ';
+      fab.style.left = Math.min(Math.max(8, hit.rect.left), window.innerWidth - 100) + 'px';
+      fab.style.top = Math.min(hit.rect.bottom + 10, window.innerHeight - 60) + 'px';
+      fab.onclick = () => { const { w, rect } = hit; hideFab(); window.getSelection().removeAllRanges(); open(w, rect); };
+      document.body.appendChild(fab);
+    }, 250);
+  });
+}
+
 export function initLookup() {
+  watchTouchSelection();
   document.addEventListener('dblclick', e => {
     if (e.target.closest('button, input, textarea, .lookup')) return;
     if (!e.target.closest('[lang="en"]')) return;
@@ -137,5 +171,5 @@ export function initLookup() {
   });
   document.addEventListener('mousedown', e => { if (box && !e.target.closest('.lookup')) closeBox(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBox(); });
-  window.addEventListener('hashchange', closeBox);
+  window.addEventListener('hashchange', () => { closeBox(); hideFab(); });
 }

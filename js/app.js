@@ -7,6 +7,7 @@ import { cardSession } from './cards.js';
 import { learnSession, missedList } from './learn.js';
 import { viewHard, startHardSession } from './hard.js';
 import { initLookup, fillIpa } from './lookup.js';
+import { initTheme, getTheme, applyTheme } from './theme.js';
 import { tabListening, tabFill } from './listening.js';
 import { tabReading } from './reading.js';
 import { viewIpa } from './ipa.js';
@@ -424,6 +425,7 @@ function viewLogin() {
 // ---------- router ----------
 function route() {
   document.querySelector('.menu')?.removeAttribute('open');
+  navEl?.classList.remove('open');
   window.speechSynthesis?.cancel();
   const [, a, b, c, d] = location.hash.split('/');
   document.querySelectorAll('[data-nav]').forEach(l => {
@@ -447,7 +449,11 @@ function route() {
   view404();
 }
 initLookup();
+initTheme();
 cloud.init();
+const navToggle = document.getElementById('navToggle'), navEl = document.getElementById('nav');
+navToggle.onclick = () => { const o = navEl.classList.toggle('open'); navToggle.setAttribute('aria-expanded', o); };
+navEl.addEventListener('click', e => { if (e.target.closest('a')) { navEl.classList.remove('open'); navToggle.setAttribute('aria-expanded', 'false'); } });
 window.addEventListener('hashchange', route);
 route();
 renderAuthBox();
