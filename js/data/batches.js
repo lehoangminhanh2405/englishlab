@@ -5,5 +5,6 @@ import { batch as cnsh3 } from './batch-cnsh-3.js';
 import { batch as gt1 } from './batch-gt-1.js';
 import { batch as gt2 } from './batch-gt-2.js';
 import { batch as gt3 } from './batch-gt-3.js';
+import { batch as gt4 } from './batch-gt-4.js';
 
-export const batches = [cnsh1, cnsh2, cnsh3, gt1, gt2, gt3];
+export const batches = [cnsh1, cnsh2, cnsh3, gt1, gt2, gt3, gt4];
