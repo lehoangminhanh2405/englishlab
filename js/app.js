@@ -32,7 +32,7 @@ function viewHome() {
   };
   render(`
     <section class="hero">
-      <span class="eyebrow">A1 → C2 · CÔNG NGHỆ SINH HỌC</span>
+      <span class="eyebrow">A2 → C2 · CÔNG NGHỆ SINH HỌC</span>
       <h1>Học từ vựng bằng cách tự nhớ lại, không phải đọc lướt.</h1>
       <p>Mỗi từ đi qua định nghĩa, ví dụ và bước tự điền từ. Từ nào chưa nhớ sẽ quay lại đúng lúc, theo lịch ôn ngắt quãng.</p>
       <div class="facts"><div><b>${allWords().length.toLocaleString("vi-VN")}</b><span>từ vựng</span></div><div><b>${Object.values(TRACKS).reduce((n, t) => n + t.topics.length, 0)}</b><span>chủ đề</span></div><div><b>8</b><span>hoạt động mỗi chủ đề</span></div></div>
