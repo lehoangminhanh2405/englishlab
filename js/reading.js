@@ -1,5 +1,9 @@
 // Đọc hiểu: đoạn văn theo chủ đề, tô sáng từ vựng của chủ đề, câu hỏi trắc nghiệm.
-import { readings } from './data/reading.js';
+import { readings as baseReadings } from './data/reading.js';
+import { batches } from './data/batches.js';
+
+const readings = { ...baseReadings };
+for (const b of batches) Object.assign(readings, b.reads);
 import * as store from './store.js';
 import { esc, speak } from './util.js';
 

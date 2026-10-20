@@ -1,11 +1,12 @@
 // Định nghĩa tiếng Anh đơn giản (tự soạn theo phong cách từ điển học tiếng Anh) và liên kết sang Cambridge Dictionary.
 import { defsGiaoTiep } from './data/defs-giao-tiep.js';
 import { defsCnsh } from './data/defs-cnsh.js';
+import { batches } from './data/batches.js';
 
 const global = new Map();     // từ (viết thường) -> định nghĩa
 const byTopic = new Map();    // "topicId|từ" -> định nghĩa riêng cho chủ đề
 
-for (const block of [defsGiaoTiep, defsCnsh]) {
+for (const block of [defsGiaoTiep, defsCnsh, ...batches.map(b => b.defs)]) {
   for (const line of block.split('\n')) {
     const i = line.indexOf(' = ');
     if (i < 1 || line.startsWith('#')) continue;
