@@ -43,7 +43,9 @@ export async function loadProfile() {
   const { data, error } = await client.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
   if (error) throw error;
   if (data) return (profile = data);
-  const row = { user_id: user.id, display_name: (user.email || 'Học viên').split('@')[0].slice(0, 30), avatar: '🙂' };
+  const meta = user.user_metadata || {};
+  const name = meta.full_name || meta.name || (user.email || 'Học viên').split('@')[0];
+  const row = { user_id: user.id, display_name: name.slice(0, 30), avatar: '🙂' };
   const ins = await client.from('profiles').insert(row).select().single();
   if (ins.error) throw ins.error;
   return (profile = ins.data);
@@ -83,7 +85,8 @@ async function start() {
   if (!enabled) return;
   try {
     const { createClient } = await import(SDK);
-    client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // PKCE: Google trả về ?code=... (không dùng #token) nên không xung đột với bộ định tuyến theo #.
+    client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true } });
   } catch (e) {
     console.error('Không tải được Supabase', e);
     setStatus('error');
@@ -98,6 +101,8 @@ async function start() {
   });
   const { data } = await client.auth.getSession();
   user = data.session?.user || null;
+  // Dọn tham số ?code=... còn sót trên thanh địa chỉ sau khi đăng nhập Google
+  if (/[?&](code|error)=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
   if (user) syncNow(); else notify();
 }
 
@@ -111,6 +116,17 @@ export async function signUp(email, password) {
   const { data, error } = await client.auth.signUp({ email, password });
   if (error) throw error;
   return !data.session;
+}
+
+/** Đăng nhập bằng tài khoản Google (qua Supabase). Trang sẽ chuyển sang Google rồi quay lại. */
+export async function signInWithGoogle() {
+  if (!client) throw new Error('Chưa kết nối được máy chủ. Hãy kiểm tra mạng rồi tải lại trang.');
+  try { sessionStorage.setItem('enlearn.afterLogin', '1'); } catch { /* bỏ qua */ }
+  const { error } = await client.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } },
+  });
+  if (error) throw error;
 }
 
 export async function signOut() {

@@ -384,8 +384,13 @@ function viewLogin() {
   const draw = (msg = '', isErr = false) => {
     render(`${crumbs([['Trang chủ', '#/'], ['Đăng nhập']])}
       <div class="card auth-card">
-        <h2>${mode === 'in' ? 'Đăng nhập' : 'Tạo tài khoản'}</h2>
-        <p>Đăng nhập để đồng bộ tiến độ học giữa điện thoại và máy tính.</p>
+        <h2>Đăng nhập</h2>
+        <p>Đăng nhập để lưu tiến độ học và dùng tiếp trên mọi thiết bị. Tiến độ đã học trên máy này sẽ được giữ lại.</p>
+        <button class="btn google block" id="googleBtn" type="button">
+          <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.4-5.7c-2 1.4-4.7 2.2-7.8 2.2-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+          Tiếp tục với Google</button>
+        <p class="auth-or"><span>hoặc dùng email</span></p>
+        ${mode === 'up' ? '<h3>Tạo tài khoản bằng email</h3>' : ''}
         <form id="authForm">
           <label>Email<input type="email" id="email" required autocomplete="email" /></label>
           <label>Mật khẩu<input type="password" id="pw" required minlength="6" autocomplete="${mode === 'in' ? 'current-password' : 'new-password'}" /></label>
@@ -397,6 +402,14 @@ function viewLogin() {
           ${mode === 'in' ? '<a href="#/login" id="forgot">Quên mật khẩu?</a>' : ''}
         </p>
       </div>`);
+    document.getElementById('googleBtn').onclick = async e => {
+      e.currentTarget.disabled = true;
+      try { await cloud.signInWithGoogle(); }
+      catch (err) {
+        const off = /provider is not enabled|Unsupported provider/i.test(err.message || '');
+        draw(off ? 'Đăng nhập Google chưa được bật trong Supabase (xem README, mục "Đăng nhập bằng Google").' : (err.message || 'Không đăng nhập được bằng Google'), true);
+      }
+    };
     const form = document.getElementById('authForm');
     form.onsubmit = async e => {
       e.preventDefault();
@@ -457,6 +470,9 @@ route();
 renderAuthBox();
 cloud.onAuthChange(() => {
   renderAuthBox();
+  try {
+    if (cloud.getUser() && sessionStorage.getItem('enlearn.afterLogin')) { sessionStorage.removeItem('enlearn.afterLogin'); location.hash = '#/profile'; return; }
+  } catch { /* bỏ qua */ }
   // Làm mới trang tĩnh sau khi đồng bộ; không đụng vào phiên học đang diễn ra.
   const a = location.hash.split('/')[1];
   if (cloud.getStatus() !== 'syncing' && (!a || ['track', 'progress', 'login', 'profile', 'roadmap', 'saved-vocabulary', 'leaderboard', 'community'].includes(a))) route();

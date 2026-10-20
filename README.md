@@ -41,3 +41,10 @@ Bài viết do người dùng đăng, hiển thị công khai. Quản trị viê
 
 ## Định nghĩa từ vựng
 `js/data/defs-giao-tiep.js` và `js/data/defs-cnsh.js` chứa định nghĩa tiếng Anh đơn giản do tác giả tự soạn (mỗi dòng `từ = định nghĩa`, dòng `topicId|từ = ...` dùng khi một từ có nghĩa khác theo chủ đề). Web **không** sao chép nội dung của Cambridge Dictionary vì có bản quyền; mỗi từ có liên kết mở trang Cambridge để đối chiếu. Muốn dùng dữ liệu Cambridge chính thức, cần đăng ký Cambridge Dictionary API (có giấy phép) rồi thay nguồn trong `js/defs.js`.
+
+## Đăng nhập bằng Google
+1. Google Cloud Console (console.cloud.google.com) → chọn hoặc tạo dự án → **APIs & Services → OAuth consent screen**: loại *External*, điền tên ứng dụng và email, thêm email của bạn vào *Test users* nếu để chế độ Testing.
+2. **Credentials → Create credentials → OAuth client ID → Web application**. Ở *Authorized redirect URIs* thêm: `https://<mã-dự-án>.supabase.co/auth/v1/callback` (copy đúng địa chỉ này ở Supabase → Authentication → Providers → Google). Bấm Create rồi chép **Client ID** và **Client secret**.
+3. Supabase → **Authentication → Providers → Google**: bật *Enable*, dán Client ID và Client secret, Save.
+4. Supabase → **Authentication → URL Configuration**: *Site URL* là địa chỉ web chính (Vercel); *Redirect URLs* thêm đủ địa chỉ Vercel, GitHub Pages và `http://localhost:8080`.
+5. Không cần sửa code hay deploy lại. Người dùng bấm "Tiếp tục với Google" ở trang Đăng nhập; tiến độ học trên máy được gộp vào tài khoản ngay lần đầu.

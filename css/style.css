@@ -319,3 +319,10 @@ mark.hl.bad { background: color-mix(in srgb, var(--bad) 28%, transparent); }
   .lookup { left: 8px !important; right: 8px; width: auto; max-height: 70vh; }
   .footer { padding: 18px 12px; }
 }
+
+.btn.google { background: #fff; color: #1f1f1f; border: 1px solid #dadce0; flex-direction: row; gap: 10px; font-weight: 600; }
+.btn.google:hover { background: #f7f8f8; border-color: #c6c9cc; }
+.btn.google svg { flex: none; }
+.auth-or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .85rem; margin: 14px 0 0; }
+.auth-or::before, .auth-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.auth-card .btn.google { margin-top: 14px; }
