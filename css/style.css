@@ -334,3 +334,19 @@ mark.hl.bad { background: color-mix(in srgb, var(--bad) 28%, transparent); }
 .small-note { font-size: .85rem; margin: 12px 0 0; }
 .auth-card label.switch { display: flex; align-items: center; gap: 8px; font-family: var(--font); font-weight: 400; font-size: .9rem; color: var(--muted); }
 .auth-card input[type="checkbox"] { width: auto; padding: 0; }
+
+/* ---- bài kiểm tra cuối chủ đề ---- */
+.stepper { display: flex; gap: 8px; flex-wrap: wrap; font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+.stepper span { padding: 4px 10px; border-radius: 999px; background: var(--soft); }
+.stepper span.on { background: var(--primary); color: var(--primary-ink); }
+.stepper span.done { color: var(--primary); }
+.card.q textarea { margin-top: 8px; }
+.hint-out { margin-left: 8px; }
+.parts { display: flex; justify-content: center; gap: 28px; flex-wrap: wrap; margin: 12px 0; }
+.parts div { display: grid; }
+.parts b { font-family: var(--mono); font-size: 1.5rem; color: var(--primary); }
+.parts span { font-size: .85rem; color: var(--muted); }
+.review { padding: 10px 12px; border-left: 4px solid var(--border); border-radius: 6px; margin: 8px 0; background: var(--bg); }
+.review.ok { border-color: var(--good); }
+.review.bad { border-color: var(--bad); }
+.review.mid { border-color: var(--mid); }

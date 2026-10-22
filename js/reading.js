@@ -4,6 +4,7 @@ import { batches } from './data/batches.js';
 
 const readings = { ...baseReadings };
 for (const b of batches) Object.assign(readings, b.reads);
+export const getReading = topicId => readings[topicId];
 import * as store from './store.js';
 import { esc, speak } from './util.js';
 

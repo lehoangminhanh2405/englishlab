@@ -15,6 +15,7 @@ import { viewRoadmap, viewHub } from './roadmap.js';
 import { viewBasket } from './basket.js';
 import { viewLeaderboard, viewCommunity, viewProfile } from './social.js';
 import { viewAdmin } from './admin.js';
+import { tabQuiz } from './topictest.js';
 
 // ---------- trang chủ ----------
 function viewHome() {
@@ -53,7 +54,7 @@ function viewHome() {
         <div class="card mini"><b>🎭 Hội thoại</b><span>Đoạn thoại mẫu, nghe và đối chiếu nghĩa.</span></div>
         <div class="card mini"><b>🎧 Nghe & ✍️ Điền từ</b><span>Nghe câu, chọn đáp án hoặc điền từ thiếu.</span></div>
         <div class="card mini"><b>📖 Đọc hiểu</b><span>Đoạn văn, câu hỏi, tra từ bằng nhấp đúp.</span></div>
-        <div class="card mini"><b>✅ Kiểm tra</b><span>Trắc nghiệm 10 câu để mở chủ đề kế tiếp.</span></div>
+        <div class="card mini"><b>✅ Kiểm tra 3 phần</b><span>Đọc hiểu, điền từ, dịch câu; đạt 70% để mở chủ đề kế tiếp.</span></div>
       </div>
     </section>`);
 }
@@ -259,61 +260,6 @@ function tabDialogue(panel, track, topic) {
     document.getElementById('playall').onclick = () => {
       speakDialogue(topic.dialogue.map(l => l[1]));
     };
-  };
-  draw();
-}
-
-// ---------- kiểm tra ----------
-function tabQuiz(panel, track, topic) {
-  const ws = wordsOf(track, topic);
-  const qs = pick(ws, Math.min(10, ws.length)).map((w, n) => {
-    const enToVi = n % 2 === 0;
-    const wrong = pick(ws.filter(x => x !== w), 3);
-    return {
-      prompt: enToVi ? w.en : w.vi,
-      label: enToVi ? 'Chọn nghĩa đúng của từ:' : 'Chọn từ tiếng Anh tương ứng:',
-      answer: enToVi ? w.vi : w.en,
-      options: shuffle([w, ...wrong]).map(x => enToVi ? x.vi : x.en),
-      say: enToVi ? w.en : null,
-    };
-  });
-  let idx = 0, score = 0;
-  const draw = () => {
-    if (idx >= qs.length) {
-      store.markDone(`${track.id}/${topic.id}:quiz`);
-      const pct = Math.round(score / qs.length * 100);
-      store.setBest(`${track.id}/${topic.id}:quiz`, pct);
-      store.addXp(score * 2 + (pct >= 70 ? 10 : 0));
-      panel.innerHTML = `<div class="card center"><h2>${pct >= 80 ? '🏆' : pct >= 50 ? '👍' : '💪'} ${score}/${qs.length} (${pct}%)</h2>
-        <p>${pct >= 70 ? 'Chúc mừng! Bạn đã hoàn thành chủ đề này và mở khóa chủ đề tiếp theo.' : 'Cần từ 70% để mở chủ đề tiếp theo. Hãy ôn lại bằng thẻ nhớ rồi thử lại nhé.'}</p>
-        <p><button class="btn" id="again">Làm lại</button>
-        <a class="btn primary" href="#/roadmap/${track.id}">Xem lộ trình</a></p></div>`;
-      document.getElementById('again').onclick = () => tabQuiz(panel, track, topic);
-      return;
-    }
-    const q = qs[idx];
-    panel.innerHTML = `
-      <div class="bar"><i style="width:${idx / qs.length * 100}%"></i></div>
-      <div class="meta">Câu ${idx + 1}/${qs.length} · Điểm ${score}</div>
-      <div class="card">
-        <p class="prompt-label">${q.label}</p>
-        <p class="prompt">${esc(q.prompt)} ${q.say ? '<button class="icon-btn" id="say">🔊</button>' : ''}</p>
-        <div class="options">${q.options.map(o => `<button class="option" data-o="${esc(o)}">${esc(o)}</button>`).join('')}</div>
-        <div class="row"><button class="btn primary" id="next" hidden>${idx + 1 < qs.length ? 'Câu tiếp' : 'Xem kết quả'}</button></div>
-      </div>`;
-    const say = document.getElementById('say');
-    if (say) say.onclick = () => speak(q.say);
-    panel.querySelectorAll('.option').forEach(b => b.onclick = () => {
-      const ok = b.dataset.o === q.answer;
-      if (ok) score++;
-      panel.querySelectorAll('.option').forEach(x => {
-        x.disabled = true;
-        if (x.dataset.o === q.answer) x.classList.add('right');
-        else if (x === b) x.classList.add('wrong');
-      });
-      document.getElementById('next').hidden = false;
-    });
-    document.getElementById('next').onclick = () => { idx++; draw(); };
   };
   draw();
 }
