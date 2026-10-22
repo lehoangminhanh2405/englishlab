@@ -24,6 +24,7 @@ state.xpDays ||= {};  // { yyyy-mm-dd: điểm kiếm được trong ngày }
 state.best ||= {};    // { "track/topic:quiz": điểm cao nhất (%) }
 state.basket ||= {};  // giỏ từ: { từ viết thường: { en, vi, ex, exVi, t, del? } }
 state.hard ||= {};    // từ cần ôn lại: { khóa thẻ: { t, ok, del? } }
+state.exams ||= [];   // lịch sử đề kiểm tra riêng: [{ id, key, title, pct, got, max, t }]
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -108,6 +109,15 @@ export function hardWrong(key) {
 export const inBasket = en => { const b = state.basket[en.toLowerCase()]; return !!b && !b.del; };
 export const basketList = () => Object.values(state.basket).filter(b => !b.del).sort((a, b) => b.t - a.t);
 
+/** Lưu kết quả một lần làm đề kiểm tra riêng (giữ 60 lần gần nhất). */
+export function addExam(rec) {
+  state.exams.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, t: Date.now(), ...rec });
+  state.exams = state.exams.slice(-60);
+  write(state);
+}
+export const examHistory = () => [...state.exams].sort((a, b) => b.t - a.t);
+export const examBest = key => state.exams.filter(e => e.key === key).reduce((m, e) => Math.max(m, e.pct), -1);
+
 export function markDone(id) {
   state.done[id] = (state.done[id] || 0) + 1;
   write(state);
@@ -141,7 +151,7 @@ export function streak() {
 export const reviewedToday = () => state.days[today()] || 0;
 
 export function reset() {
-  state = { cards: {}, done: {}, days: {}, xp: 0, xpDays: {}, best: {}, basket: {}, hard: {} };
+  state = { cards: {}, done: {}, days: {}, xp: 0, xpDays: {}, best: {}, basket: {}, hard: {}, exams: [] };
   write(state);
 }
 
@@ -165,6 +175,10 @@ export function mergeRemote(remote) {
   for (const [k, rh] of Object.entries(remote.hard || {})) {
     const lh = state.hard[k];
     if (!lh || (rh.t || 0) > (lh.t || 0)) state.hard[k] = rh;
+  }
+  if (Array.isArray(remote.exams)) {
+    const have = new Set(state.exams.map(e => e.id));
+    state.exams = [...state.exams, ...remote.exams.filter(e => e && !have.has(e.id))].sort((a, b) => a.t - b.t).slice(-60);
   }
   state.xp = Math.max(state.xp, remote.xp || 0);
   write(state, true);

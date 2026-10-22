@@ -350,3 +350,15 @@ mark.hl.bad { background: color-mix(in srgb, var(--bad) 28%, transparent); }
 .review.ok { border-color: var(--good); }
 .review.bad { border-color: var(--bad); }
 .review.mid { border-color: var(--mid); }
+
+/* ---- đề kiểm tra riêng ---- */
+.exam-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.timer { font-family: var(--mono); font-weight: 500; padding: 4px 12px; border-radius: 999px; background: var(--soft); color: var(--primary); }
+.timer.low { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+.test-card .meta b { color: var(--primary); }
+.exam-options { margin-bottom: 8px; }
+.topic-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 2px 12px; margin-top: 6px; }
+.levels-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.levels-row .lv { display: grid; text-align: center; min-width: 70px; padding: 8px 12px; border-radius: 12px; background: var(--soft); }
+.levels-row .lv b { font-family: var(--mono); color: var(--primary); }
+.est { font-family: var(--mono); color: var(--primary); font-size: 1.6rem; }

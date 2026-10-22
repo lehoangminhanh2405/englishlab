@@ -16,6 +16,7 @@ import { viewBasket } from './basket.js';
 import { viewLeaderboard, viewCommunity, viewProfile } from './social.js';
 import { viewAdmin } from './admin.js';
 import { tabQuiz } from './topictest.js';
+import { viewTests } from './tests.js';
 
 // ---------- trang chủ ----------
 function viewHome() {
@@ -407,6 +408,7 @@ function route() {
   if (a === 'community') return viewCommunity(b === 'saved' ? 'saved' : 'all');
   if (a === 'profile') return viewProfile();
   if (a === 'admin') return viewAdmin();
+  if (a === 'tests') return viewTests(b, c);
   view404();
 }
 initLookup();
