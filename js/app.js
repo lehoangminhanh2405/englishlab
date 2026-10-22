@@ -42,6 +42,7 @@ function viewHome() {
       <div class="hero-actions">
         <a class="btn primary" href="#/review">Ôn tập hôm nay${due ? ` (${due})` : ''}</a>
         <a class="btn" href="#/roadmap/giao-tiep">Lộ trình giao tiếp</a>
+        <a class="btn" href="#/tests">📝 Đề kiểm tra</a>
         <a class="btn" href="#/ipa">Bảng IPA</a>
       </div>
     </section>
