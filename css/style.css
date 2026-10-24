@@ -362,3 +362,8 @@ mark.hl.bad { background: color-mix(in srgb, var(--bad) 28%, transparent); }
 .levels-row .lv { display: grid; text-align: center; min-width: 70px; padding: 8px 12px; border-radius: 12px; background: var(--soft); }
 .levels-row .lv b { font-family: var(--mono); color: var(--primary); }
 .est { font-family: var(--mono); color: var(--primary); font-size: 1.6rem; }
+
+.req-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; background: color-mix(in srgb, var(--mid) 18%, transparent); color: var(--mid); font-weight: 600; font-size: .9rem; border: 1px solid var(--mid); }
+.req-chip.got { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); border-color: var(--good); }
+.req-chip.miss { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); border-color: var(--bad); }
+.required { margin: 2px 0 8px; font-size: .92rem; }

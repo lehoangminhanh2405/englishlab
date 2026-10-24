@@ -3,7 +3,8 @@
 import { esc, shuffle, wordsOf, sentencePool } from './util.js';
 import { getReading } from './reading.js';
 import { findInSentence } from './learn.js';
-import { similarity, translationCredit, missingWords } from './similarity.js';
+import { makeEquiv, contentWords, gradeTranslation } from './similarity.js';
+import { synonymMap, prefetchSynonyms } from './synonyms.js';
 
 const norm = s => s.toLowerCase().replace(/[-_]/g, ' ').replace(/[^a-z0-9' ]/g, '').replace(/\s+/g, ' ').trim();
 const mask = w => w.replace(/[^\s-]/g, '*');
@@ -41,7 +42,7 @@ export function buildExam(cfg) {
   const transPool = cfg.topics.flatMap(t => {
     const keys = wordsOf(t.track, t.topic).filter(w => !/\s/.test(w.en));
     return sentencePool(t.topic).filter(x => x.vi && x.en.split(/\s+/).length <= 18).map(x => ({
-      ...x, topic: t.topic, level: lv(t),
+      ...x, topic: t.topic, level: lv(t), required: x.word ? [x.word] : [],
       hints: keys.filter(w => new RegExp(`\\b${w.en.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\w*`).test(x.en.toLowerCase())).slice(0, 4).map(w => w.en),
     }));
   });
@@ -104,13 +105,15 @@ export function runExam(panel, cfg) {
   }
 
   function drawTrans() {
+    prefetchSynonyms([...ex.trans.flatMap(t => contentWords(t.en)), ...ex.fill.map(f => f.w.en).filter(w => !/\s/.test(w))]);
     panel.innerHTML = `${header()}
       <h3>Phần 3 · Dịch câu sang tiếng Anh <span class="muted">(${ex.trans.length} câu)</span></h3>
-      <p class="muted">Dịch mỗi câu tiếng Việt sang tiếng Anh. Web chấm theo độ giống với đáp án mẫu nên không cần đúng từng chữ.</p>
+      <p class="muted">Dịch mỗi câu tiếng Việt sang tiếng Anh. <b>Bạn có thể diễn đạt khác hoặc dùng từ đồng nghĩa</b>, miễn đúng nghĩa. Riêng từ ghi <span class="req-chip">Bắt buộc dùng</span> thì phải có trong câu của bạn.</p>
       ${ex.trans.map((it, i) => `<div class="card q">
         <p class="prompt">${i + 1}. ${esc(it.vi)}</p>
+        ${it.required.length ? `<p class="required">Bắt buộc dùng: ${it.required.map(w => `<span class="req-chip" lang="en">${esc(w)}</span>`).join(' ')}</p>` : ''}
         <textarea data-i="${i}" rows="2" lang="en" autocapitalize="sentences" spellcheck="false" placeholder="Viết câu tiếng Anh…">${esc(A.trans[i] || '')}</textarea>
-        ${it.hints.length ? `<button class="btn small" type="button" data-hint="${i}">💡 Gợi ý từ khóa</button><span class="muted hint-out" id="hint${i}"></span>` : ''}</div>`).join('')}
+        ${it.hints.length && !it.required.length ? `<button class="btn small" type="button" data-hint="${i}">💡 Gợi ý từ khóa</button><span class="muted hint-out" id="hint${i}"></span>` : ''}</div>`).join('')}
       ${nav()}`;
     panel.querySelectorAll('textarea[data-i]').forEach(t => t.oninput = () => { A.trans[+t.dataset.i] = t.value; });
     panel.querySelectorAll('[data-hint]').forEach(b => b.onclick = () => { document.getElementById('hint' + b.dataset.hint).textContent = ' ' + ex.trans[+b.dataset.hint].hints.join(', '); });
@@ -122,23 +125,30 @@ export function runExam(panel, cfg) {
     window.scrollTo(0, 0);
   }
 
-  function finish() {
+  async function finish() {
     if (done) return;
     done = true;
     clearInterval(timerId);
+    panel.innerHTML = '<div class="card center"><p>Đang chấm bài…</p></div>';
+    // tra từ đồng nghĩa (tối đa ~3,5 giây); lỗi mạng thì dùng nhóm đồng nghĩa dựng sẵn
+    const syn = await synonymMap([...ex.trans.flatMap(t => contentWords(t.en)), ...ex.fill.map(f => f.w.en).filter(w => !/\s/.test(w))]);
+    const equiv = makeEquiv(syn);
     const rd = ex.reading.flatMap((r, p) => r.passage.qs.map((q, i) => ({ q, level: r.level, picked: A.read[`${p}_${i}`], ok: A.read[`${p}_${i}`] === q[2], title: r.passage.title })));
     const fl = ex.fill.map((it, i) => {
-      const v = norm(A.fill[i] || '');
-      return { it, level: it.level, given: A.fill[i] || '', ok: !!v && (v === norm(it.w.en) || v === norm(it.f.hit)) };
+      const given = (A.fill[i] || '').trim(), v = norm(given);
+      const exact = !!v && (v === norm(it.w.en) || v === norm(it.f.hit));
+      // từ đồng nghĩa hợp lý (chỉ với từ đơn) được nửa điểm
+      const synOk = !exact && !!v && !/\s/.test(it.w.en) && !/\s/.test(v) && equiv(v, norm(it.w.en));
+      return { it, level: it.level, given: A.fill[i] || '', ok: exact, syn: synOk, credit: exact ? 1 : synOk ? 0.5 : 0 };
     });
     const tr = ex.trans.map((it, i) => {
       const ans = (A.trans[i] || '').trim();
-      const sim = ans ? similarity(ans, it.en) : 0;
-      return { it, level: it.level, ans, sim, credit: translationCredit(sim) };
+      const g = ans ? gradeTranslation(ans, it.en, { required: it.required, equiv }) : { sim: 0, credit: 0, missingRequired: it.required, synonyms: [], unmatched: [] };
+      return { it, level: it.level, ans, ...g };
     });
     const parts = [
       { key: 'read', name: 'Đọc hiểu', got: rd.filter(x => x.ok).length, max: rd.length },
-      { key: 'fill', name: 'Điền từ', got: fl.filter(x => x.ok).length, max: fl.length },
+      { key: 'fill', name: 'Điền từ', got: fl.reduce((s, x) => s + x.credit, 0), max: fl.length },
       { key: 'trans', name: 'Dịch câu', got: tr.reduce((s, x) => s + x.credit, 0), max: tr.length },
     ].filter(p => p.max);
     const got = parts.reduce((s, p) => s + p.got, 0), max = parts.reduce((s, p) => s + p.max, 0);
@@ -148,10 +158,10 @@ export function runExam(panel, cfg) {
     const byLevel = {};
     const add = (lvl, g, m) => { const b = (byLevel[lvl] ||= { got: 0, max: 0 }); b.got += g; b.max += m; };
     rd.forEach(x => add(x.level, x.ok ? 1 : 0, 1));
-    fl.forEach(x => add(x.level, x.ok ? 1 : 0, 1));
+    fl.forEach(x => add(x.level, x.credit, 1));
     tr.forEach(x => add(x.level, x.credit, 1));
 
-    const result = { got, max, pct, pass, parts, fl, tr, rd, byLevel, missedWords: fl.filter(x => !x.ok).map(x => x.it.w), timeUsed: cfg.minutes ? cfg.minutes * 60 - left : null };
+    const result = { got, max, pct, pass, parts, fl, tr, rd, byLevel, missedWords: fl.filter(x => x.credit === 0).map(x => x.it.w), timeUsed: cfg.minutes ? cfg.minutes * 60 - left : null };
     cfg.onResult?.(result);
 
     const levelRows = cfg.levels ? `<div class="card"><h4>Kết quả theo trình độ</h4><div class="levels-row">${cfg.levels.map(l => {
@@ -175,15 +185,17 @@ export function runExam(panel, cfg) {
         <b lang="en">${i + 1}. ${esc(x.q[0])}</b>
         <div>Bạn chọn: <span lang="en">${x.picked == null ? '(chưa chọn)' : esc(x.q[1][x.picked])}</span></div>
         ${x.ok ? '' : `<div>Đáp án: <b lang="en">${esc(x.q[1][x.q[2]])}</b></div>`}</div>`).join('')}</div>` : ''}
-      ${fl.length ? `<div class="card"><h4>Điền từ</h4>${fl.map((x, i) => `<div class="review ${x.ok ? 'ok' : 'bad'}">
+      ${fl.length ? `<div class="card"><h4>Điền từ</h4>${fl.map((x, i) => `<div class="review ${x.ok ? 'ok' : x.syn ? 'mid' : 'bad'}">
         <b lang="en">${i + 1}. ${esc(x.it.f.before)}<u>${esc(x.it.f.hit)}</u>${esc(x.it.f.after)}</b>
-        <div>Bạn điền: <span lang="en">${esc(x.given) || '(để trống)'}</span>${x.ok ? '' : ` → đáp án: <b lang="en">${esc(x.it.w.en)}</b>`}</div>
+        <div>Bạn điền: <span lang="en">${esc(x.given) || '(để trống)'}</span>${x.ok ? '' : x.syn ? ` → <b>đồng nghĩa hợp lý (nửa điểm)</b>, từ cần học: <b lang="en">${esc(x.it.w.en)}</b>` : ` → đáp án: <b lang="en">${esc(x.it.w.en)}</b>`}</div>
         <div class="muted">${esc(x.it.w.vi)}</div></div>`).join('')}</div>` : ''}
-      ${tr.length ? `<div class="card"><h4>Dịch câu</h4>${tr.map((x, i) => `<div class="review ${x.credit === 1 ? 'ok' : x.credit ? 'mid' : 'bad'}">
+      ${tr.length ? `<div class="card"><h4>Dịch câu</h4><p class="muted">Đáp án mẫu chỉ là một cách dịch; web chấm theo nghĩa nên cách diễn đạt khác hoặc từ đồng nghĩa vẫn được tính.</p>${tr.map((x, i) => `<div class="review ${x.credit === 1 ? 'ok' : x.credit ? 'mid' : 'bad'}">
         <b>${i + 1}. ${esc(x.it.vi)}</b>
-        <div>Bạn viết: <span lang="en">${esc(x.ans) || '(để trống)'}</span> <span class="muted">· độ giống ${Math.round(x.sim * 100)}%</span></div>
+        <div>Bạn viết: <span lang="en">${esc(x.ans) || '(để trống)'}</span> <span class="muted">· độ khớp nghĩa ${Math.round(x.sim * 100)}%</span></div>
+        ${x.it.required.length ? `<div>Từ bắt buộc: ${x.it.required.map(w => `<span class="req-chip ${x.missingRequired.includes(w) ? 'miss' : 'got'}" lang="en">${esc(w)} ${x.missingRequired.includes(w) ? '✗ chưa dùng' : '✓'}</span>`).join(' ')}</div>` : ''}
+        ${x.synonyms.length ? `<div class="muted">Từ đồng nghĩa được chấp nhận: ${x.synonyms.map(([a, b]) => `<span lang="en">${esc(b)}</span> ≈ <span lang="en">${esc(a)}</span>`).join(', ')}</div>` : ''}
         <div>Đáp án mẫu: <b lang="en">${esc(x.it.en)}</b></div>
-        ${x.credit < 1 && x.ans ? `<div class="muted">Còn thiếu: ${esc(missingWords(x.ans, x.it.en).join(', ')) || '—'}</div>` : ''}</div>`).join('')}</div>` : ''}`;
+        ${x.credit < 1 && x.ans && x.unmatched.length ? `<div class="muted">Ý/từ chưa thấy trong câu của bạn: <span lang="en">${esc(x.unmatched.slice(0, 8).join(', '))}</span></div>` : ''}</div>`).join('')}</div>` : ''}`;
     const again = document.getElementById('again');
     if (again) again.onclick = restart;
     cfg.bind?.(panel, result, restart);
