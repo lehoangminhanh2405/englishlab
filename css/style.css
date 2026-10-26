@@ -367,3 +367,5 @@ mark.hl.bad { background: color-mix(in srgb, var(--bad) 28%, transparent); }
 .req-chip.got { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); border-color: var(--good); }
 .req-chip.miss { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); border-color: var(--bad); }
 .required { margin: 2px 0 8px; font-size: .92rem; }
+
+.req-inline { font-family: var(--mono); font-weight: 600; color: var(--mid); white-space: nowrap; }

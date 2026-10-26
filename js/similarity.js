@@ -56,7 +56,17 @@ const STOP = new Set(('a an the to of in on at for and or but is are am was were
 export const isStop = w => STOP.has(w);
 
 /** Rút gọn dạng từ để so sánh: works/worked/working -> work. */
+const IRREGULAR = {};
+('go:went,gone,going,goes;be:is,are,am,was,were,been,being;have:has,had,having;do:does,did,done,doing;get:got,gotten,getting;' +
+ 'make:made,making;take:took,taken,taking;see:saw,seen,seeing;come:came,coming;give:gave,given,giving;say:said;eat:ate,eaten,eating;' +
+ 'buy:bought;think:thought;tell:told;feel:felt;keep:kept;leave:left;meet:met;pay:paid;sit:sat;speak:spoke,spoken;write:wrote,written;' +
+ 'know:knew,known;find:found;bring:brought;teach:taught;understand:understood;lose:lost;build:built;sell:sold;send:sent;sleep:slept;' +
+ 'stand:stood;win:won;run:ran,running;begin:began,begun;choose:chose,chosen;drink:drank,drunk;drive:drove,driven;fall:fell,fallen;' +
+ 'forget:forgot,forgotten;hold:held;read:reading;ride:rode,ridden;sing:sang,sung;swim:swam,swum;wear:wore,worn').split(';')
+  .forEach(g => { const [base, forms] = g.split(':'); forms.split(',').forEach(f => { IRREGULAR[f] = base; }); });
+
 export function stem(w) {
+  if (IRREGULAR[w]) return IRREGULAR[w];
   if (w.length < 4) return w;
   let s = w;
   if (/(ing|ed)$/.test(s) && s.replace(/(ing|ed)$/, '').length >= 3) s = s.replace(/(ing|ed)$/, '').replace(/([^aeiou])\1$/, '$1');
@@ -106,7 +116,7 @@ export function hasRequired(answer, required) {
 
 /**
  * Chấm một câu dịch theo nghĩa.
- * required: các từ/cụm bắt buộc phải có (đã hiện trên đề). Thiếu từ bắt buộc thì tối đa 0,5 điểm.
+ * required: các từ/cụm bắt buộc phải có (đã ghi trong ngoặc ở cuối câu đề). Thiếu từ bắt buộc thì 0 điểm.
  * Trả về { sim, credit, missingRequired, synonyms: [[từ mẫu, từ học viên dùng]], unmatched: [từ nội dung của đáp án mẫu chưa thấy] }.
  */
 export function gradeTranslation(answer, reference, { required = [], equiv = makeEquiv() } = {}) {
@@ -138,7 +148,11 @@ export function gradeTranslation(answer, reference, { required = [], equiv = mak
   const order = f1(l / a.length, l / r.length);
 
   const sim = 0.55 * recall + 0.25 * precision + 0.2 * order;
-  let credit = sim >= 0.75 ? 1 : sim >= 0.5 ? 0.5 : 0;
-  if (missingRequired.length) credit = Math.min(credit, 0.5);
+  // Có từ bắt buộc làm "mỏ neo" thì chấm nghĩa rộng rãi hơn; thiếu từ bắt buộc thì không được điểm.
+  const full = required.length ? 0.6 : 0.75, half = required.length ? 0.4 : 0.5;
+  let credit = sim >= full ? 1 : sim >= half ? 0.5 : 0;
+  // dùng đủ từ bắt buộc và viết thành câu hoàn chỉnh thì tối thiểu nửa điểm; thiếu từ bắt buộc thì 0
+  if (!missingRequired.length && required.length && a.length >= 3) credit = Math.max(credit, 0.5);
+  if (missingRequired.length) credit = 0;
   return { sim, credit, missingRequired, synonyms, unmatched };
 }

@@ -111,9 +111,15 @@ export const basketList = () => Object.values(state.basket).filter(b => !b.del).
 
 /** Lưu kết quả một lần làm đề kiểm tra riêng (giữ 60 lần gần nhất). */
 export function addExam(rec) {
-  state.exams.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, t: Date.now(), ...rec });
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  state.exams.push({ id, t: Date.now(), ...rec });
   state.exams = state.exams.slice(-60);
   write(state);
+  return id;
+}
+export function updateExam(id, patch) {
+  const e = state.exams.find(x => x.id === id);
+  if (e) { Object.assign(e, patch); write(state); }
 }
 export const examHistory = () => [...state.exams].sort((a, b) => b.t - a.t);
 export const examBest = key => state.exams.filter(e => e.key === key).reduce((m, e) => Math.max(m, e.pct), -1);

@@ -13,6 +13,10 @@ export function tabQuiz(panel, track, topic) {
       store.addXp(Math.round(r.got * 2) + (r.pass ? 10 : 0));
       r.missedWords.forEach(w => store.markHard(w.key));   // từ điền sai tự vào danh sách ôn lại
     },
+    onResultUpdate: (r, _handle, prev) => {   // người học tự xác nhận câu dịch đúng nghĩa
+      store.setBest(id, r.pct);
+      store.addXp(Math.max(0, (Math.round(r.got * 2) + (r.pass ? 10 : 0)) - (Math.round(prev.got * 2) + (prev.pass ? 10 : 0))));
+    },
     after: r => `<p>${r.pass ? 'Bạn đã hoàn thành chủ đề này và mở khóa chủ đề kế tiếp.' : 'Cần từ 70% để hoàn thành chủ đề. Hãy ôn lại rồi thử lại nhé.'}</p>
       <p><button class="btn" id="again">Làm lại (đề mới)</button>
       ${next ? `<a class="btn primary" href="#/topic/${track.id}/${next.id}/vocab">Chủ đề kế tiếp →</a>` : `<a class="btn primary" href="#/roadmap/${track.id}">Xem lộ trình</a>`}</p>`,

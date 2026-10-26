@@ -53,10 +53,16 @@ function estimateLevel(levels, byLevel) {
 
 function examConfig(def) {
   const cfg = sizedConfig({ title: def.title, topics: def.topics, balanceLevels: !!def.balanceLevels, levels: def.levels });
+  const xpOf = r => Math.round(r.got * 2) + (r.pass ? 10 : 0);
   cfg.onResult = r => {
-    store.addExam({ key: def.key, title: def.title, pct: r.pct, got: r.got, max: r.max });
-    store.addXp(Math.round(r.got * 2) + (r.pass ? 10 : 0));
+    const id = store.addExam({ key: def.key, title: def.title, pct: r.pct, got: r.got, max: r.max });
+    store.addXp(xpOf(r));
     r.missedWords.forEach(w => store.markHard(w.key));
+    return id;
+  };
+  cfg.onResultUpdate = (r, id, prev) => {
+    store.updateExam(id, { pct: r.pct, got: r.got });
+    store.addXp(Math.max(0, xpOf(r) - xpOf(prev)));
   };
   cfg.summary = r => {
     if (!def.levels) return '';

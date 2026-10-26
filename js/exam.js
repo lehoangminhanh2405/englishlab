@@ -28,6 +28,14 @@ function pickBalanced(items, n, keyOf) {
   return out;
 }
 
+/** Từ/cụm bắt buộc của một câu dịch: từ vựng của chủ đề có trong câu (từ đích của ví dụ đứng đầu), tối đa 2. */
+function requiredFor(it, words) {
+  const found = words.filter(w => findInSentence(it.en, w.en)).map(w => w.en);
+  const target = it.word && found.includes(it.word) ? [it.word] : [];
+  const others = found.filter(w => w !== it.word).sort((a, b) => b.length - a.length);
+  return [...target, ...others].slice(0, 2);
+}
+
 /** cfg: { topics: [{track, topic}], reading, fill, trans, levelOf?: topic => nhãn trình độ } */
 export function buildExam(cfg) {
   const lv = t => (cfg.levelOf ? cfg.levelOf(t.topic) : t.topic.level);
@@ -39,17 +47,23 @@ export function buildExam(cfg) {
     .map(w => ({ w, f: findInSentence(w.ex, w.en), topic: t.topic, track: t.track, level: lv(t) })).filter(x => x.f));
   const fill = pickBalanced(fillPool, cfg.fill, x => (cfg.balanceLevels ? x.level : x.topic.id));
 
-  const transPool = cfg.topics.flatMap(t => {
-    const keys = wordsOf(t.track, t.topic).filter(w => !/\s/.test(w.en));
-    return sentencePool(t.topic).filter(x => x.vi && x.en.split(/\s+/).length <= 18).map(x => ({
-      ...x, topic: t.topic, level: lv(t), required: x.word ? [x.word] : [],
-      hints: keys.filter(w => new RegExp(`\\b${w.en.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\w*`).test(x.en.toLowerCase())).slice(0, 4).map(w => w.en),
-    }));
-  });
-  const patterns = pickBalanced(transPool.filter(x => !x.word), Math.ceil(cfg.trans * 0.6), x => (cfg.balanceLevels ? x.level : x.topic.id));
-  const used = new Set(patterns.map(x => x.en));
-  const examples = pickBalanced(transPool.filter(x => x.word && !used.has(x.en)), cfg.trans - patterns.length, x => (cfg.balanceLevels ? x.level : x.topic.id));
-  const trans = shuffle([...patterns, ...examples]).slice(0, cfg.trans);
+  const transPool = cfg.topics.flatMap(t => sentencePool(t.topic).filter(x => x.vi && x.en.split(/\s+/).length <= 18)
+    .map(x => ({ ...x, topic: t.topic, track: t.track, level: lv(t) })));
+  const balanceKey = x => (cfg.balanceLevels ? x.level : x.topic.id);
+  // lấy dư ứng viên rồi giữ lại những câu có từ khóa của chủ đề (để ghi từ bắt buộc trong ngoặc)
+  const candidates = [
+    ...pickBalanced(transPool.filter(x => !x.word), Math.ceil(cfg.trans * 1.8), balanceKey),
+    ...pickBalanced(transPool.filter(x => x.word), Math.ceil(cfg.trans * 1.2), balanceKey),
+  ];
+  const wordCache = new Map();
+  const wordsFor = it => { const k = it.topic.id; if (!wordCache.has(k)) wordCache.set(k, wordsOf(it.track, it.topic)); return wordCache.get(k); };
+  const withKeys = candidates.map(it => ({ ...it, required: requiredFor(it, wordsFor(it)) }));
+  const keyed = shuffle(withKeys.filter(x => x.required.length)), plain = shuffle(withKeys.filter(x => !x.required.length));
+  const wantExamples = Math.floor(cfg.trans * 0.4);
+  const ex1 = keyed.filter(x => x.word).slice(0, wantExamples), ids = new Set(ex1.map(x => x.en));
+  const rest = [...keyed.filter(x => !ids.has(x.en)), ...plain];
+  const trans = shuffle([...ex1, ...rest.slice(0, cfg.trans - ex1.length)]).slice(0, cfg.trans)
+    .map(x => ({ ...x, hints: [] }));
   return { reading, fill, trans };
 }
 
@@ -108,15 +122,13 @@ export function runExam(panel, cfg) {
     prefetchSynonyms([...ex.trans.flatMap(t => contentWords(t.en)), ...ex.fill.map(f => f.w.en).filter(w => !/\s/.test(w))]);
     panel.innerHTML = `${header()}
       <h3>Phần 3 · Dịch câu sang tiếng Anh <span class="muted">(${ex.trans.length} câu)</span></h3>
-      <p class="muted">Dịch mỗi câu tiếng Việt sang tiếng Anh. <b>Bạn có thể diễn đạt khác hoặc dùng từ đồng nghĩa</b>, miễn đúng nghĩa. Riêng từ ghi <span class="req-chip">Bắt buộc dùng</span> thì phải có trong câu của bạn.</p>
+      <p class="muted">Dịch mỗi câu tiếng Việt sang tiếng Anh. Từ trong ngoặc <b class="req-inline">( )</b> ở cuối câu là <b>từ bắt buộc phải dùng</b> trong câu tiếng Anh của bạn. Các từ còn lại bạn có thể diễn đạt khác hoặc dùng từ đồng nghĩa, miễn là câu vẫn đúng nghĩa.</p>
       ${ex.trans.map((it, i) => `<div class="card q">
-        <p class="prompt">${i + 1}. ${esc(it.vi)}</p>
-        ${it.required.length ? `<p class="required">Bắt buộc dùng: ${it.required.map(w => `<span class="req-chip" lang="en">${esc(w)}</span>`).join(' ')}</p>` : ''}
+        <p class="prompt">${i + 1}. ${esc(it.vi)}${it.required.length ? ` <span class="req-inline" lang="en">(${esc(it.required.join(', '))})</span>` : ''}</p>
         <textarea data-i="${i}" rows="2" lang="en" autocapitalize="sentences" spellcheck="false" placeholder="Viết câu tiếng Anh…">${esc(A.trans[i] || '')}</textarea>
-        ${it.hints.length && !it.required.length ? `<button class="btn small" type="button" data-hint="${i}">💡 Gợi ý từ khóa</button><span class="muted hint-out" id="hint${i}"></span>` : ''}</div>`).join('')}
+        </div>`).join('')}
       ${nav()}`;
     panel.querySelectorAll('textarea[data-i]').forEach(t => t.oninput = () => { A.trans[+t.dataset.i] = t.value; });
-    panel.querySelectorAll('[data-hint]').forEach(b => b.onclick = () => { document.getElementById('hint' + b.dataset.hint).textContent = ' ' + ex.trans[+b.dataset.hint].hints.join(', '); });
   }
 
   function draw() {
@@ -146,34 +158,41 @@ export function runExam(panel, cfg) {
       const g = ans ? gradeTranslation(ans, it.en, { required: it.required, equiv }) : { sim: 0, credit: 0, missingRequired: it.required, synonyms: [], unmatched: [] };
       return { it, level: it.level, ans, ...g };
     });
-    const parts = [
-      { key: 'read', name: 'Đọc hiểu', got: rd.filter(x => x.ok).length, max: rd.length },
-      { key: 'fill', name: 'Điền từ', got: fl.reduce((s, x) => s + x.credit, 0), max: fl.length },
-      { key: 'trans', name: 'Dịch câu', got: tr.reduce((s, x) => s + x.credit, 0), max: tr.length },
-    ].filter(p => p.max);
-    const got = parts.reduce((s, p) => s + p.got, 0), max = parts.reduce((s, p) => s + p.max, 0);
-    const pct = Math.round(got / max * 100), pass = pct >= (cfg.pass || 70);
+    const timeUsed = cfg.minutes ? cfg.minutes * 60 - left : null;
 
-    // thống kê theo trình độ (dùng cho bài kiểm tra trình độ)
-    const byLevel = {};
-    const add = (lvl, g, m) => { const b = (byLevel[lvl] ||= { got: 0, max: 0 }); b.got += g; b.max += m; };
-    rd.forEach(x => add(x.level, x.ok ? 1 : 0, 1));
-    fl.forEach(x => add(x.level, x.credit, 1));
-    tr.forEach(x => add(x.level, x.credit, 1));
+    // Tổng hợp điểm từ trạng thái hiện tại của rd/fl/tr (được gọi lại khi người học tự xác nhận câu dịch đúng nghĩa)
+    const summarize = () => {
+      const parts = [
+        { key: 'read', name: 'Đọc hiểu', got: rd.filter(x => x.ok).length, max: rd.length },
+        { key: 'fill', name: 'Điền từ', got: fl.reduce((s, x) => s + x.credit, 0), max: fl.length },
+        { key: 'trans', name: 'Dịch câu', got: tr.reduce((s, x) => s + x.credit, 0), max: tr.length },
+      ].filter(p => p.max);
+      const got = parts.reduce((s, p) => s + p.got, 0), max = parts.reduce((s, p) => s + p.max, 0);
+      const pct = Math.round(got / max * 100);
+      const byLevel = {};
+      const add = (lvl, g, m) => { const b = (byLevel[lvl] ||= { got: 0, max: 0 }); b.got += g; b.max += m; };
+      rd.forEach(x => add(x.level, x.ok ? 1 : 0, 1));
+      fl.forEach(x => add(x.level, x.credit, 1));
+      tr.forEach(x => add(x.level, x.credit, 1));
+      return { got, max, pct, pass: pct >= (cfg.pass || 70), parts, fl, tr, rd, byLevel, timeUsed,
+        missedWords: fl.filter(x => x.credit === 0).map(x => x.it.w) };
+    };
 
-    const result = { got, max, pct, pass, parts, fl, tr, rd, byLevel, missedWords: fl.filter(x => x.credit === 0).map(x => x.it.w), timeUsed: cfg.minutes ? cfg.minutes * 60 - left : null };
-    cfg.onResult?.(result);
+    let result = summarize();
+    const handle = cfg.onResult?.(result);
 
-    const levelRows = cfg.levels ? `<div class="card"><h4>Kết quả theo trình độ</h4><div class="levels-row">${cfg.levels.map(l => {
-      const b = byLevel[l]; const p = b ? Math.round(b.got / b.max * 100) : null;
-      return `<div class="lv"><b>${esc(l)}</b><span>${p == null ? '–' : p + '%'}</span></div>`;
-    }).join('')}</div></div>` : '';
+    const paint = () => {
+      const { got, max, pct, pass, parts, byLevel } = result;
+      const levelRows = cfg.levels ? `<div class="card"><h4>Kết quả theo trình độ</h4><div class="levels-row">${cfg.levels.map(l => {
+        const b = byLevel[l]; const p = b ? Math.round(b.got / b.max * 100) : null;
+        return `<div class="lv"><b>${esc(l)}</b><span>${p == null ? '–' : p + '%'}</span></div>`;
+      }).join('')}</div></div>` : '';
 
-    panel.innerHTML = `
+      panel.innerHTML = `
       <div class="card center">
         <h2>${pass ? '🏆 Đạt' : '💪 Chưa đạt'} · ${pct}%</h2>
         ${cfg.title ? `<p class="muted">${esc(cfg.title)}</p>` : ''}
-        <p>${fmt(got)}/${max} điểm${result.timeUsed != null ? ` · thời gian ${Math.floor(result.timeUsed / 60)} phút ${result.timeUsed % 60} giây` : ''}.</p>
+        <p>${fmt(got)}/${max} điểm${timeUsed != null ? ` · thời gian ${Math.floor(timeUsed / 60)} phút ${timeUsed % 60} giây` : ''}.</p>
         <div class="parts">${parts.map(p => `<div><b>${fmt(p.got)}/${p.max}</b><span>${p.name}</span></div>`).join('')}</div>
         ${result.missedWords.length ? `<p class="muted">${result.missedWords.length} từ điền sai đã được thêm vào <a href="#/hard">danh sách ôn lại</a>.</p>` : ''}
         ${cfg.after ? cfg.after(result) : '<p><button class="btn primary" id="again">Làm lại</button></p>'}
@@ -189,16 +208,29 @@ export function runExam(panel, cfg) {
         <b lang="en">${i + 1}. ${esc(x.it.f.before)}<u>${esc(x.it.f.hit)}</u>${esc(x.it.f.after)}</b>
         <div>Bạn điền: <span lang="en">${esc(x.given) || '(để trống)'}</span>${x.ok ? '' : x.syn ? ` → <b>đồng nghĩa hợp lý (nửa điểm)</b>, từ cần học: <b lang="en">${esc(x.it.w.en)}</b>` : ` → đáp án: <b lang="en">${esc(x.it.w.en)}</b>`}</div>
         <div class="muted">${esc(x.it.w.vi)}</div></div>`).join('')}</div>` : ''}
-      ${tr.length ? `<div class="card"><h4>Dịch câu</h4><p class="muted">Đáp án mẫu chỉ là một cách dịch; web chấm theo nghĩa nên cách diễn đạt khác hoặc từ đồng nghĩa vẫn được tính.</p>${tr.map((x, i) => `<div class="review ${x.credit === 1 ? 'ok' : x.credit ? 'mid' : 'bad'}">
-        <b>${i + 1}. ${esc(x.it.vi)}</b>
+      ${tr.length ? `<div class="card"><h4>Dịch câu</h4><p class="muted">Đáp án mẫu chỉ là một cách dịch. Câu của bạn cần dùng đủ từ bắt buộc trong ngoặc; các từ còn lại có thể diễn đạt khác. Máy chấm theo từ vựng nên nếu bạn thấy câu mình vẫn đúng nghĩa, hãy bấm nút xác nhận để tính điểm.</p>${tr.map((x, i) => `<div class="review ${x.credit === 1 ? 'ok' : x.credit ? 'mid' : 'bad'}">
+        <b>${i + 1}. ${esc(x.it.vi)}${x.it.required.length ? ` <span class="req-inline" lang="en">(${esc(x.it.required.join(', '))})</span>` : ''}</b>
         <div>Bạn viết: <span lang="en">${esc(x.ans) || '(để trống)'}</span> <span class="muted">· độ khớp nghĩa ${Math.round(x.sim * 100)}%</span></div>
-        ${x.it.required.length ? `<div>Từ bắt buộc: ${x.it.required.map(w => `<span class="req-chip ${x.missingRequired.includes(w) ? 'miss' : 'got'}" lang="en">${esc(w)} ${x.missingRequired.includes(w) ? '✗ chưa dùng' : '✓'}</span>`).join(' ')}</div>` : ''}
+        ${x.it.required.length ? `<div>Từ bắt buộc: ${x.it.required.map(w => `<span class="req-chip ${x.missingRequired.includes(w) ? 'miss' : 'got'}" lang="en">${esc(w)} ${x.missingRequired.includes(w) ? '✗ chưa dùng' : '✓'}</span>`).join(' ')}${x.missingRequired.length ? ' <b>Câu chưa dùng từ bắt buộc nên không được điểm.</b>' : ''}</div>` : ''}
         ${x.synonyms.length ? `<div class="muted">Từ đồng nghĩa được chấp nhận: ${x.synonyms.map(([a, b]) => `<span lang="en">${esc(b)}</span> ≈ <span lang="en">${esc(a)}</span>`).join(', ')}</div>` : ''}
         <div>Đáp án mẫu: <b lang="en">${esc(x.it.en)}</b></div>
-        ${x.credit < 1 && x.ans && x.unmatched.length ? `<div class="muted">Ý/từ chưa thấy trong câu của bạn: <span lang="en">${esc(x.unmatched.slice(0, 8).join(', '))}</span></div>` : ''}</div>`).join('')}</div>` : ''}`;
-    const again = document.getElementById('again');
-    if (again) again.onclick = restart;
-    cfg.bind?.(panel, result, restart);
+        ${x.credit < 1 && x.ans && x.unmatched.length && !x.self ? `<div class="muted">Ý/từ chưa thấy trong câu của bạn: <span lang="en">${esc(x.unmatched.slice(0, 8).join(', '))}</span></div>` : ''}
+        ${x.self ? '<div class="muted">✔ Bạn đã xác nhận câu này đúng nghĩa (tính 1 điểm).</div>'
+          : x.credit < 1 && x.ans && !x.missingRequired.length ? `<button class="btn small" type="button" data-self="${i}">✔ Câu của tôi vẫn đúng nghĩa</button>` : ''}</div>`).join('')}</div>` : ''}`;
+      const again = document.getElementById('again');
+      if (again) again.onclick = restart;
+      panel.querySelectorAll('[data-self]').forEach(b => b.onclick = () => {
+        const y = scrollY, x = tr[+b.dataset.self];
+        x.credit = 1; x.self = true;
+        const prev = result;
+        result = summarize();
+        cfg.onResultUpdate?.(result, handle, prev);
+        paint();
+        window.scrollTo(0, y);
+      });
+      cfg.bind?.(panel, result, restart);
+    };
+    paint();
     window.scrollTo(0, 0);
   }
 
