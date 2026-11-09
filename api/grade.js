@@ -29,8 +29,8 @@ module.exports = async (req, res) => {
   const system = `You are a strict but fair English teacher grading Vietnamese-to-English translation exercises.
 For each item decide whether the student's English sentence correctly conveys the meaning of the Vietnamese sentence, is grammatical enough, and uses every required word (any inflected form counts, e.g. "greeted" for "greet").
 The reference translation is only ONE possible translation: different wording, synonyms and different structures are fine if the meaning is correct.
-Verdict: "correct" (meaning right, minor slips in grammar/spelling allowed), "partial" (mostly right but misses or changes part of the meaning, or has clear grammar errors), "wrong" (meaning wrong, unrelated, or required word missing).
-Reply with JSON only: {"results":[{"id":0,"verdict":"correct|partial|wrong","comment":"one short sentence in Vietnamese explaining why, with a fix if not correct"}]}`;
+Verdict is binary: "correct" (meaning right and understandable as a sentence; minor slips in grammar/spelling are allowed) or "wrong" (meaning wrong, missing part of the meaning, unrelated, or required word missing).
+Reply with JSON only: {"results":[{"id":0,"verdict":"correct|wrong","comment":"one short sentence in Vietnamese explaining why, with a fix if not correct"}]}`;
 
   try {
     const ctrl = new AbortController();
@@ -52,7 +52,7 @@ Reply with JSON only: {"results":[{"id":0,"verdict":"correct|partial|wrong","com
     const parsed = JSON.parse(data.choices?.[0]?.message?.content || '{}');
     const results = (parsed.results || []).map(x => ({
       id: Number(x.id),
-      verdict: ['correct', 'partial', 'wrong'].includes(x.verdict) ? x.verdict : 'partial',
+      verdict: x.verdict === 'correct' ? 'correct' : 'wrong',
       comment: clip(x.comment, 300),
     }));
     return res.status(200).json({ results });

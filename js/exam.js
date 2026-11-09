@@ -220,7 +220,7 @@ export function runExam(panel, cfg) {
         ${x.synonyms.length ? `<div class="muted">Từ đồng nghĩa được chấp nhận: ${x.synonyms.map(([a, b]) => `<span lang="en">${esc(b)}</span> ≈ <span lang="en">${esc(a)}</span>`).join(', ')}</div>` : ''}
         <div>Đáp án mẫu: <b lang="en">${esc(x.it.en)}</b></div>
         ${x.credit < 1 && x.ans && x.unmatched.length && !x.self ? `<div class="muted">Ý/từ chưa thấy trong câu của bạn: <span lang="en">${esc(x.unmatched.slice(0, 8).join(', '))}</span></div>` : ''}
-        ${x.ai ? `<div class="ai-note ${x.ai.verdict}">🤖 ${x.ai.verdict === 'correct' ? 'Đúng nghĩa (1 điểm)' : x.ai.verdict === 'partial' ? 'Đúng một phần (nửa điểm)' : 'Chưa đúng nghĩa (0 điểm)'}${x.ai.comment ? ': ' + esc(x.ai.comment) : ''}</div>` : ''}
+        ${x.ai ? `<div class="ai-note ${x.ai.verdict}">🤖 ${x.ai.verdict === 'correct' ? 'Đúng (1 điểm)' : 'Sai (0 điểm)'}${x.ai.comment ? ': ' + esc(x.ai.comment) : ''}</div>` : ''}
         ${x.self ? '<div class="muted">✔ Bạn đã xác nhận câu này đúng nghĩa (tính 1 điểm).</div>'
           : x.credit < 1 && x.ans && !x.missingRequired.length && !x.ai ? `<button class="btn small" type="button" data-self="${i}">✔ Câu của tôi vẫn đúng nghĩa</button>` : ''}</div>`).join('')}</div>` : ''}`;
       const again = document.getElementById('again');

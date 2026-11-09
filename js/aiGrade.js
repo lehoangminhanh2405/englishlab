@@ -1,5 +1,5 @@
 // Gọi /api/grade (hàm Vercel giữ khóa DeepSeek) để chấm nghĩa câu dịch. Lỗi/chưa cấu hình → trả null để dùng chấm cục bộ.
-const CREDIT = { correct: 1, partial: 0.5, wrong: 0 };
+const CREDIT = { correct: 1, wrong: 0 };
 
 export async function aiGradeTranslations(items) {
   if (!items.length) return [];
@@ -11,7 +11,7 @@ export async function aiGradeTranslations(items) {
     if (!r.ok) return null;
     const { results } = await r.json();
     const out = items.map(() => null);
-    for (const x of results || []) if (out[x.id] === null && x.id >= 0 && x.id < items.length) out[x.id] = { verdict: x.verdict, credit: CREDIT[x.verdict] ?? 0.5, comment: x.comment || '' };
+    for (const x of results || []) if (out[x.id] === null && x.id >= 0 && x.id < items.length) out[x.id] = { verdict: x.verdict, credit: CREDIT[x.verdict] ?? 0, comment: x.comment || '' };
     return out;
   } catch { return null; }
 }

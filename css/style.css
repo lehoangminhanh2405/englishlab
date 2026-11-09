@@ -376,4 +376,4 @@ mark.hl.bad { background: color-mix(in srgb, var(--bad) 28%, transparent); }
 .cefr-B1 { background: #2b7fd1; } .cefr-B2 { background: #5a62d6; }
 .cefr-C1 { background: #c2691d; } .cefr-C2 { background: #b8372f; }
 .ai-note { margin: 6px 0; padding: 6px 10px; border-radius: 8px; font-size: 14px; background: var(--surface-2, rgba(127,127,127,.12)); }
-.ai-note.correct { border-left: 3px solid #2f9e5b; } .ai-note.partial { border-left: 3px solid #c2851d; } .ai-note.wrong { border-left: 3px solid #b8372f; }
+.ai-note.correct { border-left: 3px solid #2f9e5b; } .ai-note.wrong { border-left: 3px solid #b8372f; }
