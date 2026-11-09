@@ -1,6 +1,17 @@
 // Gọi /api/grade (hàm Vercel giữ khóa DeepSeek) để chấm nghĩa câu dịch. Lỗi/chưa cấu hình → trả null để dùng chấm cục bộ.
 const CREDIT = { correct: 1, wrong: 0 };
 
+export async function aiSummary(summary) {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 30000);
+    const r = await fetch('/api/grade', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary }), signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!r.ok) return null;
+    return (await r.json()).summary || null;
+  } catch { return null; }
+}
+
 export async function aiGradeTranslations(items) {
   if (!items.length) return [];
   try {

@@ -3,7 +3,7 @@
 import { esc, shuffle, wordsOf, sentencePool } from './util.js';
 import { getReading } from './reading.js';
 import { findInSentence } from './learn.js';
-import { aiGradeTranslations } from './aiGrade.js';
+import { aiGradeTranslations, aiSummary } from './aiGrade.js';
 import { makeEquiv, contentWords, gradeTranslation } from './similarity.js';
 import { synonymMap, prefetchSynonyms } from './synonyms.js';
 
@@ -184,6 +184,7 @@ export function runExam(panel, cfg) {
     };
 
     let result = summarize();
+    let aiReview = ai ? { state: 'loading' } : null; // nhận xét tổng kết của AI (chỉ khi AI đang hoạt động)
     const handle = cfg.onResult?.(result);
 
     const paint = () => {
@@ -202,6 +203,7 @@ export function runExam(panel, cfg) {
         ${result.missedWords.length ? `<p class="muted">${result.missedWords.length} từ điền sai đã được thêm vào <a href="#/hard">danh sách ôn lại</a>.</p>` : ''}
         ${cfg.after ? cfg.after(result) : '<p><button class="btn primary" id="again">Làm lại</button></p>'}
       </div>
+      ${aiReview ? `<div class="card ai-review"><h4>🤖 Nhận xét của AI</h4>${aiReview.state === 'loading' ? '<p class="muted">AI đang viết nhận xét…</p>' : aiReview.state === 'ok' ? `<p>${esc(aiReview.text)}</p>` : '<p class="muted">Chưa lấy được nhận xét của AI.</p>'}</div>` : ''}
       ${cfg.summary ? cfg.summary(result) : ''}
       ${levelRows}
       <h3>Xem lại bài làm</h3>
@@ -238,6 +240,13 @@ export function runExam(panel, cfg) {
     };
     paint();
     window.scrollTo(0, 0);
+    if (aiReview) {
+      aiSummary({
+        pct: result.pct, parts: result.parts.map(p => ({ name: p.name, got: p.got, max: p.max })),
+        missed: result.missedWords.map(w => w.en),
+        trans: tr.map(x => ({ vi: x.it.vi, answer: x.ans, result: x.missingRequired.length ? 'unused_required_word' : x.credit === 1 ? 'correct' : 'wrong', note: x.ai?.comment || '' })),
+      }).then(t => { aiReview = t ? { state: 'ok', text: t } : { state: 'fail' }; if (!panel.querySelector('.ai-review')) return; const el = panel.querySelector('.ai-review'); el.innerHTML = `<h4>🤖 Nhận xét của AI</h4>${t ? `<p>${esc(t)}</p>` : '<p class="muted">Chưa lấy được nhận xét của AI.</p>'}`; });
+    }
   }
 
   if (cfg.minutes) {

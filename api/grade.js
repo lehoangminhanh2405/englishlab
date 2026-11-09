@@ -16,6 +16,7 @@ module.exports = async (req, res) => {
 
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = null; } }
+  if (body?.summary) return summarize(body.summary, key, res);
   const items = Array.isArray(body?.items) ? body.items.slice(0, 15) : [];
   if (!items.length) return res.status(400).json({ error: 'bad_request' });
   const list = items.map((it, i) => ({
@@ -60,3 +61,28 @@ Reply with JSON only: {"results":[{"id":0,"verdict":"correct|wrong","comment":"o
     return res.status(502).json({ error: 'failed' });
   }
 };
+
+async function summarize(sm, key, res) {
+  const data = {
+    percent: Number(sm.pct) || 0,
+    parts: (Array.isArray(sm.parts) ? sm.parts : []).slice(0, 4).map(p => ({ name: clip(p.name, 30), got: Number(p.got) || 0, max: Number(p.max) || 0 })),
+    wrong_fill_words: (Array.isArray(sm.missed) ? sm.missed : []).slice(0, 15).map(w => clip(w, 40)),
+    translations: (Array.isArray(sm.trans) ? sm.trans : []).slice(0, 15).map(t => ({ vietnamese: clip(t.vi, 200), student: clip(t.answer, 300), result: t.result === 'correct' ? 'correct' : t.result === 'unused_required_word' ? 'missing required word' : 'wrong', note: clip(t.note, 200) })),
+  };
+  const system = `You are an encouraging English teacher writing a short overall review (in Vietnamese, 4-7 sentences, no markdown, no bullet lists) of a Vietnamese learner's test.
+Mention: overall result, what they did well, the 1-3 most important weaknesses (grammar patterns or vocabulary you notice in their translations and wrong fill-in words), and one concrete next step. Be specific, not generic.`;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25000);
+    const r = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model: 'deepseek-chat', temperature: 0.4, messages: [{ role: 'system', content: system }, { role: 'user', content: JSON.stringify(data) }] }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!r.ok) return res.status(502).json({ error: 'upstream' });
+    const j = await r.json();
+    return res.status(200).json({ summary: clip(j.choices?.[0]?.message?.content, 1500) });
+  } catch { return res.status(502).json({ error: 'failed' }); }
+}
