@@ -1,6 +1,6 @@
 // Học từ: giới thiệu (định nghĩa, ví dụ) rồi tự điền từ vào câu ví dụ; từ sai được đánh dấu để ôn lại.
 import * as store from './store.js';
-import { esc, speak, updateBadge, toast, allWords } from './util.js';
+import { esc, levelBadge, speak, updateBadge, toast, allWords } from './util.js';
 import { defOf, cambridgeUrl } from './defs.js';
 import { dict, fillIpa } from './lookup.js';
 
@@ -114,7 +114,7 @@ export function learnSession(panel, items, { mode = 'learn', title = '', onFinis
       const res = document.getElementById('result');
       res.className = 'feedback ' + (ok ? 'good' : 'bad');
       res.innerHTML = ok ? 'Chính xác! 👏' : `Đáp án: <b>${esc(expected)}</b>`;
-      hints.innerHTML = `<div class="reveal"><span class="learn-word" lang="en">${esc(it.en)}</span> <button class="icon-btn" id="sayWord" aria-label="Nghe">🔊</button><div class="ipa" data-ipa="${esc(it.en)}"></div></div>
+      hints.innerHTML = `<div class="reveal"><span class="learn-word" lang="en">${esc(it.en)}</span>${levelBadge(it.en)} <button class="icon-btn" id="sayWord" aria-label="Nghe">🔊</button><div class="ipa" data-ipa="${esc(it.en)}"></div></div>
         <div lang="en">${f ? highlighted(f, ok ? 'hl ok' : 'hl bad') : esc(it.ex)}</div><div>${esc(it.vi)} — <i>${esc(it.exVi)}</i></div>
         <div><a href="${cambridgeUrl(it.en)}" target="_blank" rel="noopener">Xem trên Cambridge Dictionary ↗</a></div>`;
       document.getElementById('sayWord').onclick = () => speak(it.en);

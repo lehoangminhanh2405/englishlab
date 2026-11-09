@@ -2,7 +2,7 @@
 // Dữ liệu từ điển lấy từ dictionaryapi.dev, nghĩa tiếng Việt lấy từ kho từ của web hoặc MyMemory; kết quả được lưu đệm.
 import { TRACK_LIST } from './data/index.js';
 import * as store from './store.js';
-import { esc, speak, toast, setHumanVoice } from './util.js';
+import { esc, levelBadge, speak, toast, setHumanVoice } from './util.js';
 
 const CKEY = 'enlearn.dict.v1';
 let cache = {};
@@ -112,7 +112,7 @@ async function open(word, rect) {
   const ex = l?.ex || d?.meanings?.find(m => m.ex)?.ex || '';
   const syn = [...new Set((d?.meanings || []).flatMap(m => m.syn))].slice(0, 8);
   box.innerHTML = `
-    <div class="lk-head"><b>${esc(word)}</b><span class="ipa">${esc(d?.ipa || '')}</span><button class="icon-btn" data-close aria-label="Đóng">✕</button></div>
+    <div class="lk-head"><b>${esc(word)}</b>${levelBadge(word)}<span class="ipa">${esc(d?.ipa || '')}</span><button class="icon-btn" data-close aria-label="Đóng">✕</button></div>
     <div class="lk-row"><button class="btn small" data-us>🔊 Giọng Mỹ</button><button class="btn small" data-uk>🔊 Giọng Anh</button></div>
     <div class="lk-sec"><span class="lk-label">Nghĩa</span><div>${vi ? esc(vi) : '<span class="muted">Chưa có bản dịch</span>'}</div></div>
     ${d?.meanings?.length ? `<div class="lk-sec"><span class="lk-label">Định nghĩa</span>${d.meanings.map(m => `<div lang="en"><i>${esc(m.pos)}</i> — ${esc(m.defs[0] || '')}</div>`).join('')}</div>` : ''}

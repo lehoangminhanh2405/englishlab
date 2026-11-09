@@ -369,3 +369,9 @@ mark.hl.bad { background: color-mix(in srgb, var(--bad) 28%, transparent); }
 .required { margin: 2px 0 8px; font-size: .92rem; }
 
 .req-inline { font-family: var(--mono); font-weight: 600; color: var(--mid); white-space: nowrap; }
+
+/* Nhãn cấp độ CEFR của từ */
+.cefr { display: inline-block; font: 600 11px/1 'IBM Plex Mono', monospace; padding: 3px 6px; border-radius: 6px; margin-left: 8px; vertical-align: middle; letter-spacing: .02em; color: #fff; background: #6b7280; }
+.cefr-A1 { background: #2f9e5b; } .cefr-A2 { background: #4aa36b; }
+.cefr-B1 { background: #2b7fd1; } .cefr-B2 { background: #5a62d6; }
+.cefr-C1 { background: #c2691d; } .cefr-C2 { background: #b8372f; }

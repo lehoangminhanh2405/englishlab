@@ -1,6 +1,6 @@
 // Giỏ từ: các từ bạn lưu khi tra nhanh hoặc khi học thẻ; ôn bằng thẻ nhớ SRS.
 import * as store from './store.js';
-import { esc, speak, render, crumbs, basketWords, toast } from './util.js';
+import { esc, levelBadge, speak, render, crumbs, basketWords, toast } from './util.js';
 import { cardSession } from './cards.js';
 import { fillIpa } from './lookup.js';
 
@@ -18,7 +18,7 @@ export function viewBasket() {
         <thead><tr><th></th><th>Từ</th><th>Nghĩa</th><th>Ví dụ</th><th></th></tr></thead>
         <tbody>${list.map((b, i) => `<tr>
           <td><button class="icon-btn" data-say="${i}" aria-label="Nghe">🔊</button></td>
-          <td class="en" lang="en">${esc(b.en)}<div class="ipa" data-ipa="${esc(b.en)}"></div></td>
+          <td class="en" lang="en">${esc(b.en)}${levelBadge(b.en)}<div class="ipa" data-ipa="${esc(b.en)}"></div></td>
           <td>${esc(b.vi)}</td>
           <td><div lang="en">${esc(b.ex)}</div><div class="muted">${esc(b.exVi)}</div></td>
           <td><button class="icon-btn" data-del="${i}" aria-label="Xóa">🗑️</button></td>

@@ -1,7 +1,7 @@
 import * as store from './store.js';
 import * as cloud from './cloud.js';
 import {
-  TRACKS, esc, shuffle, pick, speak, speakDialogue, stopSpeaking, wordsOf, allWords, updateBadge, render, crumbs, sentencePool, topicProgress, isUnlocked, settings,
+  TRACKS, esc, shuffle, pick, speak, speakDialogue, stopSpeaking, wordsOf, levelBadge, allWords, updateBadge, render, crumbs, sentencePool, topicProgress, isUnlocked, settings,
 } from './util.js';
 import { cardSession } from './cards.js';
 import { learnSession, missedList } from './learn.js';
@@ -115,7 +115,7 @@ function tabVocab(panel, track, topic) {
       <thead><tr><th></th><th>Từ / cụm từ</th><th>Nghĩa</th><th>Ví dụ</th><th></th></tr></thead>
       <tbody>${ws.map((w, i) => `<tr>
         <td><button class="icon-btn" data-say="${i}" aria-label="Nghe phát âm">🔊</button></td>
-        <td class="en" lang="en">${esc(w.en)}<div class="ipa" data-ipa="${esc(w.en)}"></div></td>
+        <td class="en" lang="en">${esc(w.en)}${levelBadge(w.en)}<div class="ipa" data-ipa="${esc(w.en)}"></div></td>
         <td>${esc(w.vi)}</td>
         <td><div lang="en">${esc(w.ex)}</div><div class="muted">${esc(w.exVi)}</div></td>
         <td><button class="icon-btn flag ${store.isHard(w.key) ? 'on' : ''}" data-flag="${i}" title="Đánh dấu để ôn lại" aria-label="Đánh dấu ôn lại">⚑</button></td>

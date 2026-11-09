@@ -1,6 +1,6 @@
 // Phiên thẻ nhớ (SRS) dùng chung cho chủ đề, ôn tập và giỏ từ.
 import * as store from './store.js';
-import { esc, speak, updateBadge, toast } from './util.js';
+import { esc, levelBadge, speak, updateBadge, toast } from './util.js';
 import { fillIpa } from './lookup.js';
 import { defOf } from './defs.js';
 
@@ -26,7 +26,7 @@ export function cardSession(panel, cards, { onFinish, title }) {
       <div class="bar"><i style="width:${(total - queue.length) / total * 100}%"></i></div>
       <div class="meta">Còn ${queue.length}/${total} thẻ</div>
       <button class="flash ${flipped ? 'flipped' : ''}" id="flash" aria-label="Lật thẻ">
-        <div class="front"><span class="hint">${esc(c.topic.title)}</span><div class="big">${esc(c.en)}</div><span class="ipa" data-ipa="${esc(c.en)}"></span><span class="hint">Chạm để xem nghĩa</span></div>
+        <div class="front"><span class="hint">${esc(c.topic.title)}</span><div class="big">${esc(c.en)}</div>${levelBadge(c.en) ? `<div>${levelBadge(c.en)}</div>` : ''}<span class="ipa" data-ipa="${esc(c.en)}"></span><span class="hint">Chạm để xem nghĩa</span></div>
         <div class="back"><div class="big">${esc(c.vi)}</div><div class="muted" lang="en">${esc(defOf(c.topic.id, c.en))}</div><div class="ex">${esc(c.ex)}</div><div class="muted">${esc(c.exVi)}</div></div>
       </button>
       <div class="row center">

@@ -94,3 +94,8 @@ export function isUnlocked(track, topic) {
   const i = track.topics.indexOf(topic);
   return i <= 0 || topicProgress(track, track.topics[i - 1]).complete;
 }
+
+// ---------- cấp độ CEFR của từng từ ----------
+import { WORD_LEVELS } from './data/word-levels.js';
+export const levelOf = en => WORD_LEVELS[String(en).toLowerCase().trim()] || '';
+export const levelBadge = en => { const l = levelOf(en); return l ? `<span class="cefr cefr-${l}" title="Cấp độ ước lượng: ${l}">${l}</span>` : ''; };

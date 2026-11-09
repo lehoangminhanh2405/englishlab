@@ -1,6 +1,6 @@
 // Danh sách từ cần ôn lại: các từ bạn đánh dấu hoặc trả lời sai khi tự điền từ.
 import * as store from './store.js';
-import { esc, speak, render, crumbs, toast, shuffle } from './util.js';
+import { esc, levelBadge, speak, render, crumbs, toast, shuffle } from './util.js';
 import { defOf, cambridgeUrl } from './defs.js';
 import { learnSession, hardWords, missedList } from './learn.js';
 
@@ -26,7 +26,7 @@ export function viewHard() {
       <thead><tr><th></th><th>Từ</th><th>Định nghĩa</th><th>Chủ đề</th><th></th></tr></thead>
       <tbody>${list.map((w, i) => `<tr>
         <td><button class="icon-btn" data-say="${i}" aria-label="Nghe">🔊</button></td>
-        <td class="en" lang="en">${esc(w.en)}<div class="muted">${esc(w.vi)}</div></td>
+        <td class="en" lang="en">${esc(w.en)}${levelBadge(w.en)}<div class="muted">${esc(w.vi)}</div></td>
         <td lang="en">${esc(defOf(w.topic?.id, w.en))} <a href="${cambridgeUrl(w.en)}" target="_blank" rel="noopener">Cambridge ↗</a></td>
         <td>${esc(w.topic?.title || '')}</td>
         <td><button class="btn small" data-ok="${i}">Đã nhớ</button></td></tr>`).join('')}</tbody></table></div>`
