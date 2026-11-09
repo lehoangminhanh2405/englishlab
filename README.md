@@ -45,3 +45,9 @@ Bài viết do người dùng đăng, hiển thị công khai. Quản trị viê
 
 ## Định nghĩa từ vựng
 `js/data/defs-giao-tiep.js` và `js/data/defs-cnsh.js` chứa định nghĩa tiếng Anh đơn giản do tác giả tự soạn (mỗi dòng `từ = định nghĩa`, dòng `topicId|từ = ...` dùng khi một từ có nghĩa khác theo chủ đề). Web **không** sao chép nội dung của Cambridge Dictionary vì có bản quyền; mỗi từ có liên kết mở trang Cambridge để đối chiếu. Muốn dùng dữ liệu Cambridge chính thức, cần đăng ký Cambridge Dictionary API (có giấy phép) rồi thay nguồn trong `js/defs.js`.
+
+## Chấm câu dịch bằng AI (DeepSeek)
+Hàm `api/grade.js` (Vercel serverless) gọi DeepSeek để kiểm tra nghĩa câu dịch. Cách bật:
+1. Lấy API key tại platform.deepseek.com.
+2. Vercel → Project → Settings → Environment Variables: thêm `DEEPSEEK_API_KEY` = key đó (Production), rồi Redeploy.
+Chưa cấu hình / lỗi mạng / chạy trên GitHub Pages: web tự quay về chấm theo từ vựng và nút "Câu của tôi vẫn đúng nghĩa".

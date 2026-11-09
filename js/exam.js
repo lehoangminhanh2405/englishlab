@@ -3,6 +3,7 @@
 import { esc, shuffle, wordsOf, sentencePool } from './util.js';
 import { getReading } from './reading.js';
 import { findInSentence } from './learn.js';
+import { aiGradeTranslations } from './aiGrade.js';
 import { makeEquiv, contentWords, gradeTranslation } from './similarity.js';
 import { synonymMap, prefetchSynonyms } from './synonyms.js';
 
@@ -158,6 +159,10 @@ export function runExam(panel, cfg) {
       const g = ans ? gradeTranslation(ans, it.en, { required: it.required, equiv }) : { sim: 0, credit: 0, missingRequired: it.required, synonyms: [], unmatched: [] };
       return { it, level: it.level, ans, ...g };
     });
+    // DeepSeek chấm nghĩa những câu đã dùng đủ từ bắt buộc; lỗi thì giữ điểm chấm cục bộ
+    const toCheck = tr.map((x, i) => i).filter(i => tr[i].ans && !tr[i].missingRequired.length);
+    const ai = await aiGradeTranslations(toCheck.map(i => ({ vi: tr[i].it.vi, required: tr[i].it.required, ref: tr[i].it.en, answer: tr[i].ans })));
+    if (ai) toCheck.forEach((i, k) => { const r = ai[k]; if (r) { tr[i].credit = r.credit; tr[i].ai = r; } });
     const timeUsed = cfg.minutes ? cfg.minutes * 60 - left : null;
 
     // Tổng hợp điểm từ trạng thái hiện tại của rd/fl/tr (được gọi lại khi người học tự xác nhận câu dịch đúng nghĩa)
@@ -208,15 +213,16 @@ export function runExam(panel, cfg) {
         <b lang="en">${i + 1}. ${esc(x.it.f.before)}<u>${esc(x.it.f.hit)}</u>${esc(x.it.f.after)}</b>
         <div>Bạn điền: <span lang="en">${esc(x.given) || '(để trống)'}</span>${x.ok ? '' : x.syn ? ` → <b>đồng nghĩa hợp lý (nửa điểm)</b>, từ cần học: <b lang="en">${esc(x.it.w.en)}</b>` : ` → đáp án: <b lang="en">${esc(x.it.w.en)}</b>`}</div>
         <div class="muted">${esc(x.it.w.vi)}</div></div>`).join('')}</div>` : ''}
-      ${tr.length ? `<div class="card"><h4>Dịch câu</h4><p class="muted">Đáp án mẫu chỉ là một cách dịch. Câu của bạn cần dùng đủ từ bắt buộc trong ngoặc; các từ còn lại có thể diễn đạt khác. Máy chấm theo từ vựng nên nếu bạn thấy câu mình vẫn đúng nghĩa, hãy bấm nút xác nhận để tính điểm.</p>${tr.map((x, i) => `<div class="review ${x.credit === 1 ? 'ok' : x.credit ? 'mid' : 'bad'}">
+      ${tr.length ? `<div class="card"><h4>Dịch câu</h4><p class="muted">Đáp án mẫu chỉ là một cách dịch. Câu của bạn cần dùng đủ từ bắt buộc trong ngoặc; các từ còn lại có thể diễn đạt khác. Nghĩa của câu được AI (DeepSeek) kiểm tra; nếu AI không khả dụng thì chấm theo từ vựng và bạn có thể tự xác nhận câu đúng nghĩa.</p>${tr.map((x, i) => `<div class="review ${x.credit === 1 ? 'ok' : x.credit ? 'mid' : 'bad'}">
         <b>${i + 1}. ${esc(x.it.vi)}${x.it.required.length ? ` <span class="req-inline" lang="en">(${esc(x.it.required.join(', '))})</span>` : ''}</b>
         <div>Bạn viết: <span lang="en">${esc(x.ans) || '(để trống)'}</span> <span class="muted">· độ khớp nghĩa ${Math.round(x.sim * 100)}%</span></div>
         ${x.it.required.length ? `<div>Từ bắt buộc: ${x.it.required.map(w => `<span class="req-chip ${x.missingRequired.includes(w) ? 'miss' : 'got'}" lang="en">${esc(w)} ${x.missingRequired.includes(w) ? '✗ chưa dùng' : '✓'}</span>`).join(' ')}${x.missingRequired.length ? ' <b>Câu chưa dùng từ bắt buộc nên không được điểm.</b>' : ''}</div>` : ''}
         ${x.synonyms.length ? `<div class="muted">Từ đồng nghĩa được chấp nhận: ${x.synonyms.map(([a, b]) => `<span lang="en">${esc(b)}</span> ≈ <span lang="en">${esc(a)}</span>`).join(', ')}</div>` : ''}
         <div>Đáp án mẫu: <b lang="en">${esc(x.it.en)}</b></div>
         ${x.credit < 1 && x.ans && x.unmatched.length && !x.self ? `<div class="muted">Ý/từ chưa thấy trong câu của bạn: <span lang="en">${esc(x.unmatched.slice(0, 8).join(', '))}</span></div>` : ''}
+        ${x.ai ? `<div class="ai-note ${x.ai.verdict}">🤖 ${x.ai.verdict === 'correct' ? 'Đúng nghĩa (1 điểm)' : x.ai.verdict === 'partial' ? 'Đúng một phần (nửa điểm)' : 'Chưa đúng nghĩa (0 điểm)'}${x.ai.comment ? ': ' + esc(x.ai.comment) : ''}</div>` : ''}
         ${x.self ? '<div class="muted">✔ Bạn đã xác nhận câu này đúng nghĩa (tính 1 điểm).</div>'
-          : x.credit < 1 && x.ans && !x.missingRequired.length ? `<button class="btn small" type="button" data-self="${i}">✔ Câu của tôi vẫn đúng nghĩa</button>` : ''}</div>`).join('')}</div>` : ''}`;
+          : x.credit < 1 && x.ans && !x.missingRequired.length && !x.ai ? `<button class="btn small" type="button" data-self="${i}">✔ Câu của tôi vẫn đúng nghĩa</button>` : ''}</div>`).join('')}</div>` : ''}`;
       const again = document.getElementById('again');
       if (again) again.onclick = restart;
       panel.querySelectorAll('[data-self]').forEach(b => b.onclick = () => {
